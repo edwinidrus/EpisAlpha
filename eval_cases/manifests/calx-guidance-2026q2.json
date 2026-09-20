@@ -1,0 +1,18 @@
+{
+  "case_id": "calx-guidance-2026q2",
+  "kind": "real",
+  "ticker": "CALX",
+  "cik": "0001406666",
+  "instrument_id": "calx.eq",
+  "expected_disposition": "ABSTAINED",
+  "intended_case": "insufficient evidence",
+  "question": "Did the company change full-year guidance, and what did it attribute the change to?",
+  "research_cutoff": "2026-09-10T00:00:00+00:00",
+  "research_mode": "historical_reconstruction",
+  "sources": [
+    "sec_edgar",
+    "alpha_vantage"
+  ],
+  "status": "PROVISIONAL",
+  "status_note": "This case asserts what the filings do NOT contain, which is the weakest kind of claim to make without looking. If the filings do answer the question, reassign the case rather than weakening the question to preserve the intended outcome."
+}

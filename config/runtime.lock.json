@@ -1,0 +1,119 @@
+{
+  "schema_note": "M0-T03 probe record. Every field below was observed, not assumed. Anything not observed is null with a reason.",
+  "probed_at": "2026-09-20",
+  "hermes": {
+    "upstream": "https://github.com/NousResearch/hermes-agent",
+    "license": "MIT",
+    "inspected_commit": "c1488ac947c9bc33fd65ec464548dc9d8edd6122",
+    "inspected_commit_date": "2026-09-20T15:19:54Z",
+    "repo_version_at_commit": "0.21.3",
+    "installed_for_probe": "0.21.3",
+    "install_source": "git clone at the pinned commit, then an editable install (uv pip install -e .)",
+    "install_note": "Owner approved the git install. A git+https wheel build is REFUSED BY UPSTREAM: setup.py raises RuntimeError('Building wheels or sdists for hermes-agent is not supported. Hermes is distributed via the shell installer, Docker image, or Nix.'). The supported paths are the shell installer, Docker, Nix, or an editable install from a clone. The editable install at the pinned commit succeeded and the API surface below was read from 0.21.3 itself. For the M3 runtime, Docker is the right choice: it matches upstream's supported distribution and the isolation plan section 4.2 already requires.",
+    "requires_python": ">=3.11,<3.14",
+    "python_compatible_with_episalpha": true,
+    "entry_point_inspected": "run_agent.AIAgent",
+    "observed_controls": {
+      "tool_allowlist": "enabled_toolsets / disabled_toolsets (names only)",
+      "fresh_profile": "skip_context_files, skip_memory, load_soul_identity, session_id",
+      "iteration_budget": "max_iterations, iteration_budget",
+      "output_cap": "max_tokens",
+      "cancellation": "interrupt(), clear_interrupt(), close()",
+      "trace": "event_callback, tool_start_callback, tool_complete_callback, step_callback, save_trajectories",
+      "usage": "get_activity_summary(), get_credits_spent_micros(), get_credits_state()",
+      "routing": "base_url, api_key, provider, api_mode, model, switch_model()",
+      "provider_substitution": "fallback_model, providers_allowed/ignored/order - must be left unset; the plan forbids automatic substitution"
+    },
+    "custom_tool_injection": null,
+    "custom_tool_injection_finding": "Confirmed on 0.21.3, not only 0.19.0. AIAgent.__init__ exposes none of mcp_servers, tools, extra_tools, custom_tools or tool_registry, and toolsets.create_custom_toolset(name, description, tools, includes) composes existing tool NAMES only. EpisAlpha's typed tools therefore reach Hermes over MCP, configured by file (mcp.json under $HERMES_HOME/~/.hermes). MCP tools surface with an 'mcp_' name prefix, which create_custom_toolset can then allowlist: EpisAlpha MCP server -> mcp.json -> create_custom_toolset('episalpha', tools=['mcp_...']) -> enabled_toolsets=['episalpha']. This is the M3-T01/M3-T03 design, still to be proven with a working probe before the runtime is built on it.",
+    "end_to_end_agent_run": null,
+    "end_to_end_agent_run_reason": "Not attempted. M0-T03 stops before building a runtime, and driving a real agent turn with EpisAlpha tools depends on the MCP adapter decision above.",
+    "api_surface_verified_at_pinned_commit": true
+  },
+  "model_route": {
+    "provider": "ollama",
+    "endpoint_url": "https://ollama.com/v1",
+    "api_mode": "openai_chat_completions",
+    "model_id": "glm-5.3",
+    "credential_reference": "ENV:ollama_api_key",
+    "verified": true,
+    "model_id_differs_per_route": {
+      "direct_cloud": "glm-5.3",
+      "local_daemon_proxy": "glm-5.3:cloud (not probed)"
+    },
+    "observed_capabilities": {
+      "tool_calls": true,
+      "forced_tool_choice": true,
+      "tool_arguments_parse_as_json": true,
+      "nested_tool_schema_respected": true,
+      "usage_reported": true,
+      "response_format_json_schema_honored": false,
+      "response_format_json_object_honored": false
+    },
+    "pricing_available": null,
+    "pricing_note": "No pricing field observed in the usage payload, so cost stays unknown (plan section 3.8, acceptance row A22)."
+  },
+  "consequences_for_episalpha": [
+    "Structured final output must come from forced tool-call arguments, never from response_format. The OpenAI-compatible surface accepts response_format and silently ignores it, returning prose - a silent failure, not an error.",
+    "The bounded output repair in plan section 3.6 step 7 has a concrete justification: the host must validate and repair candidate JSON itself.",
+    "glm-5.3 is a reasoning model: trivial answers cost 600-1600 completion tokens. The 4000-token per-call cap in plan section 3.8 is workable but tight, and should be measured again at M3-T02.",
+    "Hermes exact-pins its dependencies, so it must live in its own environment or container and never share the application virtualenv (plan section 4.2)."
+  ],
+  "data_sources": {
+    "decided_at": "2026-09-20",
+    "basis": "TradingAgents reference architecture (assets/schema.png plus the current tradingagents/dataflows modules), adapted to EpisAlpha's evidence model.",
+    "note": "The published schema.png is older than the code. Current dataflows use Alpha Vantage (stock/fundamentals/indicator/news), FRED, Yahoo Finance, SEC EDGAR, Reddit, StockTwits and Polymarket, with date_window.py for point-in-time caching. SEC EDGAR is in both their set and EpisAlpha's plan.",
+    "owner_scope_decision": "Full TradingAgents shape: market, news, social, fundamentals, macro. This exceeds plan section 1.2's v0.1 envelope of filings plus one price path.",
+    "provenance_model": {
+      "primary": "the issuer's or regulator's own document",
+      "secondary": "a report about a primary source; an article about a filing is not the filing",
+      "unverified": "public commentary with no availability guarantee and no accountable publisher"
+    },
+    "enabled_by_default": [
+      "sec_edgar",
+      "alpha_vantage",
+      "alpha_vantage_news"
+    ],
+    "disabled_by_default": [
+      "fred",
+      "reddit",
+      "stocktwits"
+    ],
+    "price_source": {
+      "source_id": "alpha_vantage",
+      "free_tier": "25 requests/day, 5/minute",
+      "credential_reference": "ENV:alpha_vantage_api_key",
+      "obtained": false,
+      "note": "Key not yet issued; settings report it via sources.missing_credentials without failing the load."
+    }
+  },
+  "demo_corpus": {
+    "theme": "Company guidance and demand changes",
+    "resolved_at": "2026-09-20",
+    "basis": "Public reporting on 2026 guidance changes; SEC CIKs verified against SEC company_tickers.json.",
+    "companies": [
+      {
+        "ticker": "LULU",
+        "cik": "0001397187",
+        "name": "lululemon athletica inc.",
+        "intended_case": "supported thesis",
+        "evidence": "Cut full-year guidance after a Q2 revenue decline; Americas demand weakness cited; guidance moved to a 5-7% revenue decline."
+      },
+      {
+        "ticker": "TSCO",
+        "cik": "0000916365",
+        "name": "TRACTOR SUPPLY CO /DE/",
+        "intended_case": "conflicting evidence",
+        "evidence": "Cut adjusted EPS guidance to $1.90-2.00 from $2.13-2.23 and net sales growth to 2.5-3.5% from 4-6%, attributed to both softer demand and higher costs, while sales growth stayed positive."
+      },
+      {
+        "ticker": "CALX",
+        "cik": "0001406666",
+        "name": "CALIX, INC",
+        "intended_case": "insufficient evidence",
+        "evidence": "Small-cap filer; the guidance/demand question is expected to be unanswerable from its filings. PROVISIONAL - confirm at M2-T04 before locking the case."
+      }
+    ],
+    "case_mapping_status": "PROVISIONAL. The three case types are intentions, not verified properties of the filings. M2-T04 curates the corpus and must confirm or reassign them."
+  }
+}

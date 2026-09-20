@@ -1,0 +1,124 @@
+# EpisAlpha configuration example.
+#
+# Copy to config/demo.toml and export the credentials it references.
+# Never write a credential value into this file. Credentials are "ENV:NAME" references only,
+# so a completed config/demo.toml still contains no secrets.
+
+[paths]
+# Relative entries resolve from THIS FILE's directory, never from the process working directory.
+project_root = ".."
+data_root = ".episalpha"          # relative entries resolve under project_root
+
+[provider]
+# Owner decision: Ollama, GLM 5.3. Route VERIFIED by M0-T03 on 2026-09-20.
+# The model id differs per route: the direct cloud endpoint lists it as "glm-5.3", while the
+# local Ollama daemon uses the ":cloud" suffix to proxy it. Using the wrong pairing fails.
+#   A. direct cloud HTTP (configured here), authenticated by the key reference below;
+#   B. local daemon for a signed-in CLI: endpoint http://127.0.0.1:11434/v1,
+#      model "glm-5.3:cloud", no api_key_env. Not probed.
+#
+# VERIFIED LIMITATION: this route accepts response_format (json_schema and json_object) and
+# SILENTLY IGNORES BOTH, returning prose. Structured output must come from forced tool_choice
+# arguments, validated host-side. See docs/implementation/hermes_probe.md.
+model_id = "glm-5.3"
+endpoint_url = "https://ollama.com/v1"
+api_key_env = "ENV:ollama_api_key"    # variable NAME, never the key itself
+request_timeout_seconds = 60
+
+[demo]
+# Owner decision, resolved 2026-09-20 from public reporting on 2026 guidance changes.
+# Theme: company guidance and demand changes (plan section 1.2).
+# Intended case mapping, PROVISIONAL until the corpus is curated at M2-T04:
+#   LULU - supported thesis   (cut FY guidance, explicit Americas demand weakness)
+#   TSCO - conflicting        (cut EPS guidance, but still positive sales growth; demand vs cost)
+#   CALX - insufficient       (small-cap; guidance/demand question expected to be unanswerable)
+# SEC CIKs verified against SEC company_tickers.json:
+#   LULU 0001397187 lululemon athletica inc.
+#   TSCO 0000916365 TRACTOR SUPPLY CO /DE/
+#   CALX 0001406666 CALIX, INC
+companies = ["LULU", "TSCO", "CALX"]
+theme = "Company guidance and demand changes"
+
+[sources]
+# Source families follow the TradingAgents reference architecture, adapted to EpisAlpha's
+# evidence model. `provenance` is not a quality score: it records what KIND of thing the
+# source is, so the validator can refuse to let a forum post carry a filing's weight.
+#   primary    - the issuer's or regulator's own document
+#   secondary  - a report ABOUT a primary source
+#   unverified - public commentary, no availability guarantee, no accountable publisher
+filings_source_id = "sec_edgar"
+price_source_id = "alpha_vantage"
+
+[[sources.sources]]
+source_id = "sec_edgar"
+family = "fundamentals"
+provenance = "primary"
+base_url = "https://www.sec.gov"
+# No key. SEC requires a descriptive User-Agent with contact details; see their fair-access
+# policy. Rate limiting is the connector's responsibility at M2-T03.
+
+[[sources.sources]]
+source_id = "alpha_vantage"
+family = "market"
+provenance = "primary"
+base_url = "https://www.alphavantage.co"
+api_key_env = "ENV:alpha_vantage_api_key"
+# VERIFIED 2026-09-20 against LULU, TSCO, CALX (100 daily bars each).
+# Free tier nominally 25 requests/day and 5/minute, but in practice it refuses back-to-back
+# calls: space same-source requests >= 1 second apart. A throttle or entitlement refusal comes
+# back as HTTP 200 carrying an "Information" or "Note" key and NO data - the connector must map
+# that to SOURCE_FAILED, never NO_DATA (plan section 2.6).
+# UNADJUSTED CLOSE: TIME_SERIES_DAILY_ADJUSTED is a premium endpoint, so the free daily close is
+# not split- or dividend-adjusted. A split would manufacture a fake return. Any stored series
+# records this, and no multi-day return is displayed without the unadjusted label.
+
+[[sources.sources]]
+source_id = "alpha_vantage_news"
+family = "news"
+provenance = "secondary"
+base_url = "https://www.alphavantage.co"
+api_key_env = "ENV:alpha_vantage_api_key"
+# Shares the market key and its 25/day budget. An article about a filing is not the filing.
+
+[[sources.sources]]
+source_id = "fred"
+family = "macro"
+provenance = "primary"
+base_url = "https://api.stlouisfed.org"
+api_key_env = "ENV:FRED_API_KEY"
+enabled = false
+# Disabled until a macro question actually needs it; enabling it costs a key and a connector.
+
+[[sources.sources]]
+source_id = "reddit"
+family = "social"
+provenance = "unverified"
+base_url = "https://oauth.reddit.com"
+api_key_env = "ENV:REDDIT_CLIENT_SECRET"
+enabled = false
+
+[[sources.sources]]
+source_id = "stocktwits"
+family = "social"
+provenance = "unverified"
+base_url = "https://api.stocktwits.com"
+enabled = false
+# Social sources are disabled by default. They have no availability guarantee and no
+# accountable publisher, so they cannot establish that anything is true. Enable them only
+# once the validator enforces that an unverified source is never the sole support for a
+# material assertion.
+
+[limits]
+# Plan section 3.8. Proposed engineering limits, not measured performance.
+max_active_research_jobs   = 1
+run_wall_time_seconds      = 300
+max_model_requests         = 8         # total, including retries and auxiliary calls
+max_tool_calls             = 12
+max_output_tokens_per_call = 4000
+max_request_body_bytes     = 131072    # 128 KiB
+max_tool_result_bytes      = 32768     # 32 KiB
+max_evidence_search_hits   = 6
+max_output_repairs         = 1
+max_transport_retries      = 1         # counts toward max_model_requests
+# eur_cap is intentionally absent: v0.1 has no cost reservation or verified pricing, so a hard
+# EUR cap cannot be claimed (plan section 3.8) and setting it fails validation on purpose.

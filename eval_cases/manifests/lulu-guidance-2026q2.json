@@ -1,0 +1,18 @@
+{
+  "case_id": "lulu-guidance-2026q2",
+  "kind": "real",
+  "ticker": "LULU",
+  "cik": "0001397187",
+  "instrument_id": "lulu.eq",
+  "expected_disposition": "RESEARCH_COMPLETED",
+  "intended_case": "supported thesis",
+  "question": "Did the company change full-year guidance, and what did it attribute the change to?",
+  "research_cutoff": "2026-09-10T00:00:00+00:00",
+  "research_mode": "historical_reconstruction",
+  "sources": [
+    "sec_edgar",
+    "alpha_vantage"
+  ],
+  "status": "PROVISIONAL",
+  "status_note": "Derived from public reporting, not from reading the filings. The owner checkpoint for M2-T04 requires manually inspecting the key quotations before this case is treated as settled."
+}

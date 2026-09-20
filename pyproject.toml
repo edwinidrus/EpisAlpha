@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "episalpha"
+version = "0.1.0"
+description = "Evidence-grounded personal investment research workbench"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Proprietary" }
+authors = [
+  { name = "EpisAlpha" },
+]
+dependencies = [
+  "pydantic>=2.11,<3.0",
+  "typer>=0.15,<1.0",
+]
+
+[project.scripts]
+episalpha = "episalpha.cli:app"
+
+[dependency-groups]
+dev = [
+  "mypy>=1.15,<2.0",
+  "pytest>=8.3,<9.0",
+  "ruff>=0.9,<1.0",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+markers = [
+  "live: requires explicitly configured external runtime or credentials",
+]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+extend-exclude = ["*.md"]
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+files = ["src/episalpha"]
+python_version = "3.12"
+strict = true
+warn_unreachable = true

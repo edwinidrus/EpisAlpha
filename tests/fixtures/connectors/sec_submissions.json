@@ -1,0 +1,28 @@
+{
+  "cik": 1397187,
+  "name": "lululemon athletica inc.",
+  "filings": {
+    "recent": {
+      "accessionNumber": [
+        "0001397187-26-000045",
+        "0001397187-26-000031"
+      ],
+      "form": [
+        "8-K",
+        "10-Q"
+      ],
+      "filingDate": [
+        "2026-09-04",
+        "2026-06-05"
+      ],
+      "acceptanceDateTime": [
+        "2026-09-04T16:31:05.000Z",
+        "2026-06-05T16:05:12.000Z"
+      ],
+      "primaryDocument": [
+        "lulu-20260904.htm",
+        "lulu-20260605.htm"
+      ]
+    }
+  }
+}

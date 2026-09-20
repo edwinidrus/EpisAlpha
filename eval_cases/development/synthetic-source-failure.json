@@ -1,0 +1,10 @@
+{
+  "case_id": "synthetic-source-failure",
+  "kind": "synthetic",
+  "instrument_id": "synthetic-issuer.eq",
+  "probes": "The price source answers HTTP 200 with an Information key and no data.",
+  "expected_disposition": "FAILED",
+  "expected_error_code": "SOURCE_FAILED",
+  "acceptance_row": "A04",
+  "note": "Must never be recorded as NO_DATA or as a considered abstention."
+}

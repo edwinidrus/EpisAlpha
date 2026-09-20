@@ -1,8 +1,8 @@
 # EpisAlpha MVP — Milestone Implementation Plan
 
-**Version:** 1.0  
-**Prepared:** 20 September 2026  
-**Status:** Ready for incremental implementation; no application implementation or gate results are implied by this document.  
+**Version:** 1.1  
+**Prepared:** 20 September 2026 · **Amended:** 20 September 2026 after gates G0/G1  
+**Status:** M0 and M1 implemented and gated. Amendments below record verified facts and owner decisions; everything else remains as issued.  
 **Audience:** Solo builder and coding agents, including GPT-5.6 Terra / GLM-5.3-class models.  
 **Architecture approach:** Lightweight arc42-style constraints and quality scenarios, organized around executable delivery milestones.  
 **Companion:** [Architecture and Implementation Blueprint](./EpisAlpha_Architecture_and_Implementation_Blueprint.md)
@@ -12,6 +12,24 @@
 This plan narrows the companion blueprint for v0.1. Where their MVP scope differs, this plan governs the proposed v0.1 implementation. The blueprint remains the longer-term direction.
 
 Passing the gates establishes tested behavior, not perfect model accuracy, proven alpha, or production readiness. Coding-model capability must be compensated for through bounded tasks, explicit contracts, and independent verification.
+
+---
+
+## 0. Amendment record (v1.1)
+
+Every change below replaces an assumption with something observed, or records an owner decision.
+Sections not listed are unchanged. Evidence: `docs/implementation/hermes_probe.md`,
+`config/runtime.lock.json`, `docs/implementation/progress.md`.
+
+| # | Section | Change | Why |
+|---|---|---|---|
+| A1 | 1.2, 1.4 | Owner inputs resolved: Ollama `glm-5.3`; LULU/TSCO/CALX; Alpha Vantage prices | Probed and verified live |
+| A2 | 1.2, 3.3, 3.4 | Source set widened to the TradingAgents shape; every source carries a `provenance` value | Owner decision; mixing filings with forum posts needs the distinction |
+| A3 | 3.6, 3.8, M3-T02 | The relay must **not** use `response_format`; structured output comes from forced `tool_choice` | The route accepts `response_format` and silently ignores it |
+| A4 | 3.8 | Added per-source request budgets | Alpha Vantage free tier throttles at ~1 request/second |
+| A5 | 4.2, M0-T03 | Hermes installs via Docker/installer/Nix or an editable clone, never a built wheel | Upstream `setup.py` refuses wheel and sdist builds |
+| A6 | 2.6 (new) | Point-in-time price caveat: free-tier close is **unadjusted** | `TIME_SERIES_DAILY_ADJUSTED` is a premium endpoint |
+| A7 | 4.1 | `tests/conftest.py` and `tests/fixtures/` added to the target structure | Shared fixtures must import across test directories |
 
 ---
 
@@ -37,13 +55,16 @@ The first audience is the owner, using a local Linux/WSL environment. No public 
 |---|---|
 | Product | Personal research workbench |
 | Demo corpus | Three named companies; one narrow theme; three curated demo cases |
-| Example theme | Company guidance and demand changes; actual companies selected in M0 |
-| Cases | Supported thesis; conflicting evidence; insufficient evidence |
-| Sources | SEC filings, company releases, one end-of-day price path |
+| Theme | Company guidance and demand changes (**resolved**) |
+| Companies | **LULU** (CIK 0001397187), **TSCO** (0000916365), **CALX** (0001406666); CIKs verified against SEC `company_tickers.json` |
+| Cases | Supported thesis; conflicting evidence; insufficient evidence. **The mapping of company to case is provisional** — it reflects public reporting, not verified filing content, and M2-T04 must confirm or reassign it |
+| Sources | **Amended (A2).** Five families following the TradingAgents reference architecture: fundamentals (`sec_edgar`, primary), market (`alpha_vantage`, primary), news (`alpha_vantage_news`, secondary), macro (`fred`, disabled), social (`reddit`, `stocktwits`, unverified, **disabled**). Enabled by default: the first three |
+| Price path | `alpha_vantage` `TIME_SERIES_DAILY`, free tier. See 2.6 — the free close is **unadjusted** |
 | Research horizon | One horizon: 20 trading days, labeled research context |
 | User surface | Streamlit browser application |
 | Automation surface | Thin Typer CLI sharing application services |
-| Core language | Python 3.12; verify compatibility during integration spike |
+| Core language | Python 3.12 (**verified**: Hermes `requires-python >=3.11,<3.14`) |
+| Research model route | **Resolved**: Ollama, model `glm-5.3`, `https://ollama.com/v1`, credential `ENV:ollama_api_key`. The id is `glm-5.3` on the cloud endpoint and `glm-5.3:cloud` via the local daemon; the pairing is not interchangeable |
 | Domain validation | Pydantic v2 |
 | Canonical storage | SQLite; migrations; foreign keys; explicit transactions |
 | Original evidence | Content-addressed local files, outside agent write access |
@@ -69,13 +90,15 @@ Retain the principles behind Sentinel as a small deterministic **research valida
 
 ### 1.4 Inputs to resolve in M0
 
-These are the only initial owner choices:
+**All resolved as of 20 September 2026 (amendment A1), except the EUR limit, which is deliberately not configurable.**
 
-- Research model/provider already available, including endpoint and credential mechanism.
-- Three companies and one question/theme.
-- Price-source choice and permitted local use.
-- Optional EUR spending limit; otherwise enforce request/output/time limits and show cost as unknown or estimated.
-- Desired demo date and available weekly implementation time.
+| Input | Resolution |
+|---|---|
+| Research model/provider, endpoint, credential | Ollama, `glm-5.3`, `https://ollama.com/v1`, `ENV:ollama_api_key`. Verified by live probe |
+| Three companies and one theme | LULU, TSCO, CALX; theme *company guidance and demand changes*. Case mapping provisional until M2-T04 |
+| Price source and permitted local use | Alpha Vantage `TIME_SERIES_DAILY`, `ENV:alpha_vantage_api_key`, free tier. Verified live for all three tickers. See 2.6 for the unadjusted-close caveat |
+| Optional EUR spending limit | **Not configurable in v0.1.** Setting `limits.eur_cap` fails validation on purpose: with no cost reservation and no verified pricing, a hard cap cannot be honoured (3.8, row A22). Request, output and time limits apply and cost is reported as unknown |
+| Desired demo date and weekly time | Still owner-supplied; does not block implementation |
 
 Use fixtures to progress when credentials are absent. Mark live integration blocked; never replace a required live gate with a fake success.
 
@@ -174,6 +197,27 @@ Ask the owner or request a stronger-model review when:
 
 Provide a minimal reproducer and competing interpretations. Do not respond with a broad rewrite.
 
+### 2.6 Verified provider constraints (amendment A3, A4, A6)
+
+These were measured, not assumed. Build against them rather than against the advertised surface.
+
+1. **`response_format` is accepted and silently ignored.** Both `json_schema` (`strict: true`) and
+   `json_object` returned ordinary prose on this route — no error, no warning. Structured output
+   **must** come from a forced `tool_choice` on a named function, whose arguments the host parses
+   and validates. This is the concrete justification for the bounded repair in 3.6 step 7.
+2. **Alpha Vantage free tier throttles harder than its published quota.** Nominally 25 requests
+   per day and 5 per minute, but back-to-back requests are refused with an `Information` message
+   advising roughly one request per second. A refusal returns HTTP 200 with no data, so the
+   connector must treat an `Information` or `Note` key as `SOURCE_FAILED`, never as `NO_DATA`.
+3. **The free-tier daily close is UNADJUSTED.** `TIME_SERIES_DAILY_ADJUSTED` is a premium
+   endpoint. A split or dividend therefore produces a fake return in the raw series, which
+   directly conflicts with the blueprint's adapter acceptance test that "splits and dividends do
+   not create false returns". Until this is resolved, the price path must either carry an explicit
+   unadjusted label wherever a return is shown, or source corporate actions separately. **Do not
+   compute or display a multi-day return from the raw series without that label.**
+4. **`glm-5.3` is a reasoning model.** Trivial prompts cost 600-1600 completion tokens, so the
+   4 000-token per-call cap in 3.8 is workable but tight. Re-measure at M3-T02.
+
 ---
 
 ## 3. Architecture and contracts to freeze
@@ -259,7 +303,18 @@ relation_predicate:
 
 research_mode:
   forward_research | historical_reconstruction
+
+source_family:                       # amendment A2
+  market | news | social | fundamentals | macro
+
+provenance_strength:                 # amendment A2
+  primary | secondary | unverified
 ```
+
+`provenance_strength` is **not** a quality score. It records what kind of thing a source is:
+`primary` is the issuer's or regulator's own document, `secondary` is a report *about* a primary
+source, and `unverified` is public commentary with no availability guarantee and no accountable
+publisher. The filings source must be `primary` — a report about a filing is not the filing.
 
 `reported` means a source made the assertion, not that the world necessarily matches it. `derived` requires input references and a versioned deterministic calculation. `hypothesized` requires explicit assumptions and does not become a fact by repetition.
 
@@ -282,6 +337,11 @@ Store semantic assessments as versioned records rather than overwriting historic
 Reject unknown predicates, missing endpoints, invalid source/target types, and self-relations. Do not infer `CONTRADICTS` merely from different numeric values: subject, period, units, and accounting scope must be compatible, and the assessment must be recorded.
 
 No `CAUSES` relation in v0.1. Hypothesis mechanisms remain explicit text attached to supporting/opposing claims.
+
+**Unverified sources cannot carry an assertion alone (amendment A2).** A claim whose only
+supporting spans come from `unverified` sources may not be the sole support for a
+`ThesisAssertion`. The validator must enforce this, and social sources stay disabled in
+configuration until it does. An unverified source can raise a question; it cannot settle one.
 
 ### 3.5 Temporal rules
 
@@ -326,7 +386,7 @@ Stages:
 4. Validate references before passing them to later stages.
 5. Critic checks counter-evidence and missing information in a fresh context.
 6. Synthesizer creates `Thesis` from validated intermediate records.
-7. Run deterministic validation; allow one bounded schema/reference repair.
+7. Run deterministic validation; allow one bounded schema/reference repair. **This step is load-bearing, not defensive decoration (amendment A3):** the provider ignores `response_format`, so the host is the only thing that enforces structure.
 8. Persist completed research, abstention, partial result, or explicit failure.
 
 ```text
@@ -369,6 +429,8 @@ Defaults are proposed engineering limits, not measured performance:
 | Evidence search hits | 6 per call | Tool handler |
 | Candidate output repair | 1 | Workflow |
 | Transport retry | 1 for explicitly transient failures | Provider adapter; counts toward request budget |
+| Source requests per day | 25 for `alpha_vantage` (shared with `alpha_vantage_news`) | Connector; amendment A4 |
+| Source request spacing | ≥ 1 second between calls to the same source | Connector; amendment A4 |
 
 Actual tokens/cost are reported from provider usage and versioned pricing where available. Unknown usage or pricing stays unknown. Do not claim a hard EUR cap unless conservative reservation and pricing support are implemented and tested; if the owner requires such a cap and support is absent, block live runs.
 
@@ -447,6 +509,7 @@ EpisAlpha/
 │   ├── Dockerfile
 │   └── compose.yaml
 ├── tests/
+│   ├── conftest.py             # amendment A7: makes tests/fixtures importable everywhere
 │   ├── contracts/
 │   ├── evidence/
 │   ├── runtime/
@@ -481,7 +544,8 @@ Validation/holdout labels live outside the agent-accessible workspace, configure
 - Runtime application: Pydantic, Typer, HTTPX, Streamlit; add small parsing/visualization dependencies only at the relevant task.
 - Standard library SQLite for initial persistence; no ORM requirement.
 - Development: pytest, Ruff, mypy; lock resolved versions with `uv`.
-- Hermes dependencies live in the pinned runtime environment/container, not necessarily in the application environment.
+- Hermes dependencies live in the pinned runtime environment/container, never in the application environment. Hermes exact-pins its own dependencies, so sharing a virtualenv would fight the application's lock.
+- **Hermes cannot be installed as a built wheel (amendment A5).** Its `setup.py` deliberately raises `RuntimeError: Building wheels or sdists for hermes-agent is not supported. Hermes is distributed via the shell installer, Docker image, or Nix.` A `pip install git+https://...` therefore fails. Supported paths: the shell installer, the Docker image, Nix, or `uv pip install -e .` from a clone at the pinned commit. **Use the Docker image for the M3 runtime** — it is upstream's supported distribution and already provides the isolation this plan requires.
 - Do not install every Hermes optional extra unless the integration spike proves it necessary.
 - No new framework without a concrete task requirement.
 
@@ -555,6 +619,8 @@ Earliest user-visible review: M4 CLI. First browser demonstration: M5. Full requ
 - **Acceptance:** A real selected-model call uses the intended tool and returns a parseable result. Report exactly which controls are available, absent, or require the relay/parent worker. Trace records actual upstream commit and model ID.
 - **Focused test:** `tests/integration/test_hermes_probe.py`, marked `live`.
 - **Stop:** Do not implement an elaborate runtime. If required control is impossible, resolve adapter approach now rather than fabricating an API.
+- **Outcome (amendment A5, completed 20 September 2026).** Commit `c1488ac947c9bc33fd65ec464548dc9d8edd6122`, version `0.21.3`, MIT. Controls present on `run_agent.AIAgent`: `enabled_toolsets`/`disabled_toolsets`, `skip_memory`, `skip_context_files`, `load_soul_identity`, `session_id`, `max_iterations`, `iteration_budget`, `max_tokens`, `event_callback`, `interrupt()`/`clear_interrupt()`/`close()`, `get_activity_summary()`, `base_url`/`api_key`/`provider`/`api_mode`/`model`. `fallback_model` and `providers_*` exist and **must stay unset** — 1.2 forbids automatic substitution.
+- **Open item carried into M3.** There is **no in-process tool injection**: `AIAgent.__init__` exposes none of `mcp_servers`, `tools`, `extra_tools`, `custom_tools`, `tool_registry`, and `toolsets.create_custom_toolset(name, description, tools, includes)` composes existing tool *names* only. EpisAlpha's typed tools must reach Hermes over **MCP**, which is file-configured (`mcp.json` under `$HERMES_HOME`/`~/.hermes`); MCP tools surface with an `mcp_` prefix that `create_custom_toolset` can then allowlist. This path is evidence-backed but **unproven end to end** — M3-T01 must demonstrate it before the runtime is built on it.
 
 ### Gate G0
 
@@ -648,6 +714,8 @@ Also run section 4.3 checks. Owner reviews representative serialized examples. F
 - **Focused test:** `tests/evidence/test_connectors.py`.
 - **SEC rules:** Identify client with appropriate User-Agent; cache; stay below current fair-access limits; distinguish filing date, acceptance, and verified dissemination/availability.
 - **Price rule:** Display context only in v0.1. Do not turn an uncertain adjusted-price series into verified investment returns.
+- **Amended source set (A2).** Implement `sec_edgar` (filings, primary) and `alpha_vantage` (daily price, primary) first; `alpha_vantage_news` (secondary) next. `fred`, `reddit` and `stocktwits` are configured but disabled and must stay disabled until the validator enforces the unverified-source rule in 3.4.
+- **Amended acceptance (A4, A6).** An `Information` or `Note` key in an Alpha Vantage HTTP 200 response is a throttle or entitlement refusal and maps to `SOURCE_FAILED`, never `NO_DATA`. Space same-source requests at least one second apart and respect the 25/day budget shared with `alpha_vantage_news`. The free-tier close is unadjusted, so any stored price series records that fact and no multi-day return is shown without it. SEC EDGAR requires a descriptive User-Agent carrying contact details.
 
 ### M2-T04 — Frozen snapshot builder and demo corpus
 
@@ -674,6 +742,9 @@ Also run section 4.3 checks. For each demo case, a reviewer can open raw source 
 
 ### M3-T01 — Runtime port, fake runtime, and typed tools
 
+> **Amendment A5.** Typed tools reach Hermes as an **external MCP server**, not as in-process callables — see the M0-T03 outcome. First task here is to prove that path with a minimal MCP server and one read-only tool, before any EpisAlpha tool surface is designed around it. Run Hermes from its **Docker image**.
+
+
 - **Depends on:** G2.
 - **Files:** `src/episalpha/runtime/port.py`, `src/episalpha/runtime/fake.py`, `src/episalpha/runtime/tools.py`.
 - **Build:** `ResearchRuntimePort.run_stage(stage, context) -> StageResult`; cancellation contract; deterministic fake; typed read-only tools:
@@ -686,6 +757,9 @@ Also run section 4.3 checks. For each demo case, a reviewer can open raw source 
 - **Focused test:** `tests/runtime/test_tools.py`.
 
 ### M3-T02 — Single-route model relay
+
+> **Amendment A3.** The relay must **not** send `response_format`. This route accepts it and silently returns prose. Structured output comes from a forced `tool_choice` on a named function whose arguments the relay parses and validates; a test must assert that the ignored-`response_format` behaviour is still what it was, so a provider change is noticed rather than assumed.
+
 
 - **Depends on:** M3-T01.
 - **Files:** `src/episalpha/runtime/model_relay.py`, `src/episalpha/settings.py` only if required by verified probe.
@@ -1114,11 +1188,13 @@ External documentation was reviewed on 20 September 2026. Resolve and pin actual
 11. [Streamlit forms](https://docs.streamlit.io/develop/concepts/architecture/forms) — deliberate submission and rerun behavior.
 12. [Ollama API compatibility](https://docs.ollama.com/api/openai-compatibility) — subset compatibility requires capability tests.
 13. [TradingAgents changelog](https://github.com/TauricResearch/TradingAgents/blob/main/CHANGELOG.md) — useful connector/PIT reference; not a required dependency for v0.1.
+14. [TradingAgents dataflows](https://github.com/TauricResearch/TradingAgents/tree/main/tradingagents/dataflows) — the source set EpisAlpha's families follow. **Their published `assets/schema.png` is older than their code**: the diagram shows Bloomberg, Reuters, EODHD and X, while the modules are Alpha Vantage, FRED, Yahoo Finance, SEC EDGAR, Reddit, StockTwits and Polymarket, plus `date_window.py` for point-in-time caching.
+15. [Alpha Vantage documentation](https://www.alphavantage.co/documentation/) — `TIME_SERIES_DAILY` is free; `TIME_SERIES_DAILY_ADJUSTED` is premium. Free tier nominally 25 requests/day and 5/minute, in practice ~1 request/second.
 
 ---
 
 ## 17. Start here
 
-Execute **M0-T01 only** in the first coding session. Then record actual verification in the handoff file once M0-T02 creates it.
+~~Execute **M0-T01 only** in the first coding session.~~ **M0 and M1 are complete and gated** (G0 offline passed with the live portion partial; G1 passed; schema version frozen at `1`). The next eligible task is **M2-T01**. Current state, real command output and open blockers live in `docs/implementation/progress.md`.
 
 Do not ask a coding model to “implement this entire plan.” Give it the current task, relevant contracts, and acceptance tests. Keep architectural decisions stable, checkpoints explicit, and subsequent work gated by observable results.

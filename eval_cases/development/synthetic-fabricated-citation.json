@@ -1,0 +1,9 @@
+{
+  "case_id": "synthetic-fabricated-citation",
+  "kind": "synthetic",
+  "instrument_id": "synthetic-issuer.eq",
+  "probes": "A candidate cites a span whose quotation is absent from the stored text.",
+  "expected_disposition": "REJECTED",
+  "expected_error_code": "INVALID_OUTPUT",
+  "acceptance_row": "A07"
+}

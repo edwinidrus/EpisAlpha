@@ -1,0 +1,9 @@
+{
+  "case_id": "synthetic-restatement",
+  "kind": "synthetic",
+  "instrument_id": "synthetic-issuer.eq",
+  "probes": "Version A available at T1, corrected version B at T3; a T2 query must see A.",
+  "expected_disposition": "version A selected",
+  "expected_error_code": null,
+  "acceptance_row": "A06"
+}

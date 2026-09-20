@@ -1,0 +1,18 @@
+{
+  "case_id": "tsco-guidance-2026q2",
+  "kind": "real",
+  "ticker": "TSCO",
+  "cik": "0000916365",
+  "instrument_id": "tsco.eq",
+  "expected_disposition": "RESEARCH_COMPLETED",
+  "intended_case": "conflicting evidence",
+  "question": "Did the company change full-year guidance, and what did it attribute the change to?",
+  "research_cutoff": "2026-09-10T00:00:00+00:00",
+  "research_mode": "historical_reconstruction",
+  "sources": [
+    "sec_edgar",
+    "alpha_vantage"
+  ],
+  "status": "PROVISIONAL",
+  "status_note": "Guidance was cut while sales growth stayed positive and the change was attributed to both demand and costs. Whether the filings actually support a conflicting-evidence case must be confirmed by inspection."
+}

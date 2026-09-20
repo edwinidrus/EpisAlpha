@@ -1,0 +1,20 @@
+# Local application state and generated evidence artifacts
+.episalpha/
+
+# Credentials and environment-specific configuration
+.env
+.env.*
+!.env.example
+
+# Python environments, caches, and coverage output
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# OS metadata files
+*.Zone.Identifier

@@ -1,0 +1,9 @@
+{
+  "case_id": "synthetic-future-source",
+  "kind": "synthetic",
+  "instrument_id": "synthetic-issuer.eq",
+  "probes": "A document that became available after the cutoff is offered to the run.",
+  "expected_disposition": "not present in the snapshot",
+  "expected_error_code": null,
+  "acceptance_row": "A05"
+}
