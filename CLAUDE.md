@@ -35,22 +35,37 @@ building anything:
   paper portfolio, evolution lab, evaluation science, trust zones). Do not load it by default;
   consult specific sections when the plan points there.
 
-Current state: only `M0-T01` (package bootstrap) is implemented — `src/episalpha/__init__.py`,
-`src/episalpha/cli.py`, `tests/integration/test_package.py`. Everything else in plan §4.1 is
-target structure, not existing code.
+Current state: M0–M2 implemented (gates G0 offline, G1, G2 passed; G0 live partial — Hermes
+runtime unproven). Gates G0–G2 are reopened by amendments A8–A11. Next task: `M0-T04` (research
+route moves to OpenRouter, live re-probe), then `M0-T05`, `M0-T06`, `M1-T05`, `M2-T05`, `M2-T06`,
+`M3-T01`. `implementation/STATUS.md` is the source of truth for task status; anything in plan
+§4.1 not present on disk is target structure, not existing code.
+
+Research model route (amendment A9): OpenRouter `nvidia/nemotron-3-ultra-550b-a55b:free` via
+`ENV:openrouter_api_key`, **unverified until M0-T04**. The free tier allows 20 req/min and
+50 req/day (1,000 with ≥$10 lifetime credits). Budget live tests accordingly.
 
 ## How work is executed here
 
 Work proceeds **one task card per session**, in dependency order (M0 → M1 → … → M7), each
-milestone gated by the preceding gate's checks actually passing.
+milestone gated by the preceding gate's checks actually passing. **Start every session at
+`implementation/README.md`.** Load exactly `implementation/CONSTITUTION.md`, the phase
+`CONSTITUTION.md`, and one task pack (`implementation/M<n>-*/tasks/*.md`), then work its steps:
+**Plan → Verify → Build → Test → Diagnose**.
 
 - Target 1–3 implementation files plus one focused test file per task. Split the task rather than
   exceeding it.
 - Read only the relevant plan sections, the current task card, its contracts, and directly related
   code/tests.
 - Do not implement later-milestone features to make the current task easier.
-- Record each task in `docs/implementation/progress.md` (created in M0-T02): Task / Status /
-  Changes / Verification (exact command + actual result) / Blocker / Next.
+- Record each task in the phase `PROGRESS.md` and `implementation/STATUS.md`: Task / Status /
+  Changes / Verification (exact command + actual result) / Blocker / Next. Append every attempt
+  to the task's `*.journal.md`. Gate results go in the phase `GATE.md`.
+  `docs/implementation/progress.md` keeps only the cross-cutting owner inputs, findings and
+  amendments.
+- **Diagnose layer (A11):** run `uv run python scripts/diagnose.py` at the end of each task
+  (from M0-T05). Emit boundary events via `episalpha.observability.event` (from M0-T06). Never
+  log secrets or payload/prompt text. Logs are diagnostic, never canonical.
 - Commits are an explicit owner action; the plan does not authorize automatic commits or pushes.
 - Stop and report **BLOCKED** when an upstream interface is unverified, credentials for a required
   live check are missing, a contract conflicts, or scope needs an unapproved architectural change.

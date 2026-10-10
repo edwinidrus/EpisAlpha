@@ -17,4 +17,4 @@ __pycache__/
 htmlcov/
 
 # OS metadata files
-*.Zone.Identifier
+*Zone.Identifier

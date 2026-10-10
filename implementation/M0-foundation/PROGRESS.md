@@ -1,0 +1,17 @@
+# M0 progress
+
+One row per task. A task is DONE only when its acceptance checks actually pass, with the real
+command output recorded here. Keep `../STATUS.md` in step. Commits are an owner action.
+
+Rows for completed tasks were migrated unchanged from `docs/implementation/progress.md` on
+2026-10-10 (amendment A10).
+
+| Task | Status | Changes | Verification | Blocker | Next |
+|---|---|---|---|---|---|
+| M0-T01 | DONE | `pyproject.toml`, `src/episalpha/__init__.py`, `src/episalpha/cli.py`, `tests/integration/test_package.py`, `.gitignore`, `uv.lock` — Python package with an `episalpha` console entry point, `--version`, registered `live` marker, lint/type/test configuration. | 2026-09-20: `uv sync --all-groups` → editable install OK; `uv run episalpha --version` → `0.1.0`; `uv run ruff check .` → All checks passed; `uv run ruff format --check .` → 3 files already formatted; `uv run mypy src/episalpha` → Success: no issues found in 2 source files; `uv run pytest -q -m "not live"` → 2 passed | None | M0-T02 |
+| M0-T02 | DONE | `src/episalpha/settings.py`, `config/demo.example.toml`, `tests/contracts/test_settings.py`, `README.md`, `pyproject.toml`/`uv.lock` (+`pydantic>=2.11`) — one validated settings object holding paths, provider route, demo selection, source IDs and every plan section 3.8 limit; stdlib `tomllib`; credentials are `ENV:NAME` references resolved lazily. | 2026-09-20: four standard checks pass; `uv run pytest -q tests/contracts/test_settings.py` → 31 passed | None for offline work | M0-T03 |
+| M0-T03 | DONE | `scripts/probe_hermes.py`, `config/runtime.lock.json`, `docs/implementation/hermes_probe.md`, `tests/integration/test_hermes_probe.py` (`live`); corrected `config/demo.example.toml`. Probed the real route; inspected Hermes's API surface **at the pinned commit `c1488ac` / 0.21.3** after the owner approved the git install. | 2026-09-20: `uv run python scripts/probe_hermes.py config/demo.toml` → real calls to `glm-5.3`; `uv run pytest -q -m live tests/integration/test_hermes_probe.py` → 2 passed in 16.93s | Hermes MCP tool path identified but unproven end to end (M3) | M1-T01 |
+| M0-T02b | DONE | `src/episalpha/settings.py` (SourceFamily, ProvenanceStrength, SourceConfig, expanded SourcesConfig), `config/demo.example.toml`, `tests/contracts/test_settings.py` — full TradingAgents source set with provenance, resolved demo corpus and price source. | 2026-09-20: `uv run pytest -q tests/contracts/test_settings.py` → 40 passed; four standard checks pass | Alpha Vantage key not yet issued | M2-T01 |
+| M0-T04 | TODO | Planned (A9): `config/demo.toml`, `config/demo.example.toml`, `scripts/probe_hermes.py`, `config/runtime.lock.json`, `docs/implementation/hermes_probe.md`, `tests/integration/test_hermes_probe.py` | — | — | M0-T05 |
+| M0-T05 | TODO | Planned (A11): `scripts/diagnose.py`, `tests/integration/test_diagnose.py` | — | — | M0-T06 |
+| M0-T06 | TODO | Planned (A11): `src/episalpha/observability.py`, `tests/observability/test_observability.py` | — | — | M1-T05 |

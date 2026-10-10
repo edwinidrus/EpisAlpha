@@ -1,8 +1,8 @@
 # EpisAlpha MVP — Milestone Implementation Plan
 
-**Version:** 1.1  
-**Prepared:** 20 September 2026 · **Amended:** 20 September 2026 after gates G0/G1  
-**Status:** M0 and M1 implemented and gated. Amendments below record verified facts and owner decisions; everything else remains as issued.  
+**Version:** 1.3  
+**Prepared:** 20 September 2026 · **Amended:** 20 September 2026 after gates G0/G1; 10 October 2026 (A8–A11)  
+**Status:** M0, M1 and M2 implemented and gated. Amendments below record verified facts and owner decisions; everything else remains as issued.  
 **Audience:** Solo builder and coding agents, including GPT-5.6 Terra / GLM-5.3-class models.  
 **Architecture approach:** Lightweight arc42-style constraints and quality scenarios, organized around executable delivery milestones.  
 **Companion:** [Architecture and Implementation Blueprint](./EpisAlpha_Architecture_and_Implementation_Blueprint.md)
@@ -15,7 +15,7 @@ Passing the gates establishes tested behavior, not perfect model accuracy, prove
 
 ---
 
-## 0. Amendment record (v1.1)
+## 0. Amendment record (v1.1–v1.3)
 
 Every change below replaces an assumption with something observed, or records an owner decision.
 Sections not listed are unchanged. Evidence: `docs/implementation/hermes_probe.md`,
@@ -30,6 +30,10 @@ Sections not listed are unchanged. Evidence: `docs/implementation/hermes_probe.m
 | A5 | 4.2, M0-T03 | Hermes installs via Docker/installer/Nix or an editable clone, never a built wheel | Upstream `setup.py` refuses wheel and sdist builds |
 | A6 | 2.6 (new) | Point-in-time price caveat: free-tier close is **unadjusted** | `TIME_SERIES_DAILY_ADJUSTED` is a premium endpoint |
 | A7 | 4.1 | `tests/conftest.py` and `tests/fixtures/` added to the target structure | Shared fixtures must import across test directories |
+| A8 | 1.2, 3.4, 3.6, M1-T05 (new), M2-T05 (new), M3-T01, M4-T04, M5-T02, M6-T01, 15.3 | **Quantitative evidence layer (v1.2).** Every number is either reported (cited span) or derived by a versioned deterministic method the validator recomputes; point-in-time SEC XBRL fundamentals; a host-side compute tool. No returns, backtests, factor models or alpha claims in v0.1 | LLM multi-step financial arithmetic errs 10–20% or worse (FAITH 2025); M1-T04's "deterministic derivation verification" only resolved input references and never recomputed a value; owner chose "Core numbers" scope on 2026-10-10 |
+| A9 | 1.2, M0-T04 (new), M3-T02 | **Research route moves to OpenRouter** `nvidia/nemotron-3-ultra-550b-a55b:free` (`https://openrouter.ai/api/v1`, `ENV:openrouter_api_key`). **Unverified until the M0-T04 live probe**; Ollama `glm-5.3` stays in the lock file as history. Free tier: 20 req/min; 50 req/day (1,000 with ≥$10 lifetime credits) — at most 6 runs/day at 8 requests/run; the M6 campaign needs credits or a multi-day schedule. `:free` data-logging policy unconfirmed | Owner decision 2026-10-10 |
+| A10 | 17, all task cards | **Execution layer moves to `implementation/`**: per-phase CONSTITUTION/PLAN/PROGRESS/GATE and self-contained task packs (Plan → Verify → Build → Test → Diagnose). This plan stays the source of contracts (§§1–4) and the acceptance matrix (§14); task status lives in `implementation/STATUS.md` | Owner request: one focused context per coding session |
+| A11 | M0-T05, M0-T06, M2-T06 (new); M3+ cards | **Diagnose layer.** Implementation level: `scripts/diagnose.py` (checks, tests per directory, docs↔disk traceability, regression vs history) plus an append-only journal per task. Operational level: `src/episalpha/observability.py` (stdlib JSON-lines events, `contextvars` correlation, credential redaction); every boundary emits events; logs are diagnostic, never canonical. Acceptance rows A25 (wrong derived number) and A26 (secret in any log) added in `implementation/M7-acceptance/PLAN.md` | Owner request: white-box visibility of what works and what does not |
 
 ---
 
@@ -60,11 +64,12 @@ The first audience is the owner, using a local Linux/WSL environment. No public 
 | Cases | Supported thesis; conflicting evidence; insufficient evidence. **The mapping of company to case is provisional** — it reflects public reporting, not verified filing content, and M2-T04 must confirm or reassign it |
 | Sources | **Amended (A2).** Five families following the TradingAgents reference architecture: fundamentals (`sec_edgar`, primary), market (`alpha_vantage`, primary), news (`alpha_vantage_news`, secondary), macro (`fred`, disabled), social (`reddit`, `stocktwits`, unverified, **disabled**). Enabled by default: the first three |
 | Price path | `alpha_vantage` `TIME_SERIES_DAILY`, free tier. See 2.6 — the free close is **unadjusted** |
+| Numeric fundamentals | **Amended (A8).** `sec_xbrl`: SEC `companyfacts` API, `primary`, no key, same User-Agent and host allowlist as `sec_edgar`. Facts are selected by `filed <= cutoff`; the `frames` API is **never** used for a historical cutoff because it returns the last-filed (possibly restated) value |
 | Research horizon | One horizon: 20 trading days, labeled research context |
 | User surface | Streamlit browser application |
 | Automation surface | Thin Typer CLI sharing application services |
 | Core language | Python 3.12 (**verified**: Hermes `requires-python >=3.11,<3.14`) |
-| Research model route | **Resolved**: Ollama, model `glm-5.3`, `https://ollama.com/v1`, credential `ENV:ollama_api_key`. The id is `glm-5.3` on the cloud endpoint and `glm-5.3:cloud` via the local daemon; the pairing is not interchangeable |
+| Research model route | **Amended (A9), re-probe pending (M0-T04):** OpenRouter `nvidia/nemotron-3-ultra-550b-a55b:free`, `https://openrouter.ai/api/v1`, `ENV:openrouter_api_key`. Previously **resolved and verified**: Ollama, model `glm-5.3`, `https://ollama.com/v1`, credential `ENV:ollama_api_key`. The id is `glm-5.3` on the cloud endpoint and `glm-5.3:cloud` via the local daemon; the pairing is not interchangeable |
 | Domain validation | Pydantic v2 |
 | Canonical storage | SQLite; migrations; foreign keys; explicit transactions |
 | Original evidence | Content-addressed local files, outside agent write access |
@@ -343,6 +348,13 @@ supporting spans come from `unverified` sources may not be the sole support for 
 `ThesisAssertion`. The validator must enforce this, and social sources stay disabled in
 configuration until it does. An unverified source can raise a question; it cannot settle one.
 
+**Numbers are reported or recomputed, never asserted (amendment A8).** Every number a
+`ThesisAssertion` relies on comes from a `NumericFact` on either a `reported` claim with a cited
+span, or a `derived` claim whose `Derivation` names a registered `method`@`method_version` and
+whose value the validator recomputes from the input claims' `NumericFact`s. A mismatch, an
+unknown method, or incompatible input units/periods fails validation. The model may propose a
+derivation; it never supplies the computed value.
+
 ### 3.5 Temporal rules
 
 Do not collapse these clocks:
@@ -386,7 +398,7 @@ Stages:
 4. Validate references before passing them to later stages.
 5. Critic checks counter-evidence and missing information in a fresh context.
 6. Synthesizer creates `Thesis` from validated intermediate records.
-7. Run deterministic validation; allow one bounded schema/reference repair. **This step is load-bearing, not defensive decoration (amendment A3):** the provider ignores `response_format`, so the host is the only thing that enforces structure.
+7. Run deterministic validation; allow one bounded schema/reference repair. **This step is load-bearing, not defensive decoration (amendment A3):** the provider ignores `response_format`, so the host is the only thing that enforces structure. Validation includes recomputing every derived numeric value (amendment A8).
 8. Persist completed research, abstention, partial result, or explicit failure.
 
 ```text
@@ -474,7 +486,8 @@ EpisAlpha/
 │   │   └── snapshots.py
 │   ├── connectors/
 │   │   ├── filings.py
-│   │   └── prices.py
+│   │   ├── prices.py
+│   │   └── xbrl.py
 │   ├── runtime/
 │   │   ├── port.py
 │   │   ├── fake.py
@@ -485,6 +498,7 @@ EpisAlpha/
 │   ├── research/
 │   │   ├── runner.py
 │   │   ├── validation.py
+│   │   ├── derivations.py
 │   │   └── artifacts.py
 │   ├── knowledge/
 │   │   ├── query.py
@@ -673,6 +687,15 @@ Also run section 4.3 checks. Owner reviews probe findings and selected provider/
 - **Acceptance:** Missing/mismatched citations fail; invalid relation types fail; unsupported hypotheses cannot be relabeled reported; quotation matching never claims semantic entailment; semantic status stays unreviewed unless an assessment exists.
 - **Focused test:** `tests/research/test_validation.py`.
 
+### M1-T05 — Derivation registry and recomputation (amendment A8)
+
+- **Depends on:** G1.
+- **Files:** `src/episalpha/research/derivations.py` (new), `src/episalpha/research/validation.py` (add `check_derivations`, wire into `validate()`).
+- **Build:** A frozen registry mapping `method` + `method_version` to pure `Decimal` functions: `difference`, `pct_change`, `ratio`, `margin`, `range_midpoint` (guidance range), `guidance_revision` (new midpoint vs prior midpoint). One explicit quantize/rounding rule. Unit and period compatibility checks on inputs. The validator recomputes each `derived` claim's `numeric_fact.value` from its input claims' `NumericFact`s.
+- **Acceptance:** Unknown method or version fails with a typed error; recomputed value differing from the claimed value fails; mismatched units/periods fail; division by zero is an error, never `0`; no floats anywhere. Closes the gap where M1-T04 resolved derivation inputs but never recomputed the value.
+- **Schema:** None. Uses existing `Derivation` and `NumericFact` fields; `SCHEMA_VERSION` stays `1`.
+- **Focused test:** `tests/research/test_derivations.py`.
+
 ### Gate G1
 
 ```bash
@@ -726,6 +749,14 @@ Also run section 4.3 checks. Owner reviews representative serialized examples. F
 - **Focused test:** `tests/evidence/test_snapshots.py`.
 - **Owner checkpoint:** Confirm source permissions and manually inspect key quotations in the three real demonstration cases. Synthetic cases are visibly separate.
 
+### M2-T05 — Point-in-time XBRL fundamentals (amendment A8)
+
+- **Depends on:** M2-T03, M1-T05.
+- **Files:** `src/episalpha/connectors/xbrl.py` (new; reuse `user_agent`/`check_allowed` from `connectors/filings.py`), `tests/fixtures/connectors/companyfacts_*.json`.
+- **Build:** Parse SEC `companyfacts` into `NumericFact` candidates carrying concept, unit, period, form, accession and `filed`. Select the latest fact with `filed <= cutoff` per concept, period and unit, reusing `evidence/temporal.py` where semantics match. Store the raw payload content-addressed so each fact cites an exact span.
+- **Acceptance:** A restatement filed after the cutoff is never selected; the `frames` API is never called; a refusal maps to `SOURCE_FAILED` and missing data to `NO_DATA`; injected transport keeps the default suite offline.
+- **Focused test:** `tests/evidence/test_xbrl.py`.
+
 ### Gate G2
 
 ```bash
@@ -745,7 +776,7 @@ Also run section 4.3 checks. For each demo case, a reviewer can open raw source 
 > **Amendment A5.** Typed tools reach Hermes as an **external MCP server**, not as in-process callables — see the M0-T03 outcome. First task here is to prove that path with a minimal MCP server and one read-only tool, before any EpisAlpha tool surface is designed around it. Run Hermes from its **Docker image**.
 
 
-- **Depends on:** G2.
+- **Depends on:** G2, M2-T05 (amendment A8).
 - **Files:** `src/episalpha/runtime/port.py`, `src/episalpha/runtime/fake.py`, `src/episalpha/runtime/tools.py`.
 - **Build:** `ResearchRuntimePort.run_stage(stage, context) -> StageResult`; cancellation contract; deterministic fake; typed read-only tools:
   - `resolve_instrument`
@@ -753,6 +784,8 @@ Also run section 4.3 checks. For each demo case, a reviewer can open raw source 
   - `get_evidence_span`
   - `get_market_context`
   - `get_support_and_contradictions`
+  - `get_numeric_facts` (amendment A8; snapshot-bound XBRL/reported facts)
+  - `compute_derivation` (amendment A8; the host computes a registered method over validated input claims and returns value plus `method_version` — the model only proposes the call)
 - **Acceptance:** Every tool is bound to snapshot/cutoff, enforces limits, returns typed errors, and records result hashes. Arbitrary SQL, URLs, filesystem paths, or broader cutoffs cannot expand access. Fake output includes fixture provenance.
 - **Focused test:** `tests/runtime/test_tools.py`.
 
@@ -844,7 +877,7 @@ uv run episalpha research run --snapshot SNAPSHOT_ID --question "What changed an
 - **Depends on:** M4-T03.
 - **Files:** `docs/implementation/demo_acceptance.md`; narrow fixes to the responsible module only after recording failed criterion.
 - **Build:** Run each curated case with selected model; manually inspect every material assertion, citation, numeric claim, counter-case, and missing-expectations statement.
-- **Acceptance:** No invented evidence IDs; unsupported claims are corrected, rejected, or visibly unreviewed rather than labeled verified. Essential missing evidence produces abstention. Source failure stays distinguishable from no evidence. Price/consensus unknowns are explicit.
+- **Acceptance:** No invented evidence IDs; unsupported claims are corrected, rejected, or visibly unreviewed rather than labeled verified. Essential missing evidence produces abstention. Source failure stays distinguishable from no evidence. Price/consensus unknowns are explicit. Every number in the thesis traces to a cited span or a recomputed derivation (amendment A8).
 - **Evidence:** Store actual run IDs, model/harness hashes, review notes, duration, usage, and costs/unknowns. No fabricated example metrics.
 - **Stop:** Quality failure is feedback for current harness, not permission to weaken validators.
 
@@ -877,7 +910,7 @@ Also run section 4.3 checks and complete the three real-case reviews from M4-T04
 
 - **Depends on:** M5-T01.
 - **Files:** `src/episalpha/knowledge/query.py`, `apps/streamlit_app.py`.
-- **Build:** Assertion-to-claim-to-span drilldown; source passages; timestamps; semantic review status; relationship table; small selected-thesis graph with typed nodes and readable relationship labels.
+- **Build:** Assertion-to-claim-to-span drilldown; source passages; timestamps; semantic review status; derivation chain for numeric claims (inputs, `method`@`version`, value — amendment A8); relationship table; small selected-thesis graph with typed nodes and readable relationship labels.
 - **Acceptance:** Every displayed node/edge belongs to selected snapshot/run; unsupported status is visible; source text is rendered safely; graph limits are bounded; relation table remains usable if graphical layout fails.
 - **Focused test:** `tests/knowledge/test_query.py` and, if needed, a small UI test extension.
 - **Graph budget:** Default maximum 50 nodes around selected thesis. No whole-universe visualization or graph-layout research.
@@ -993,7 +1026,7 @@ If any condition fails, retain baseline. These thresholds are engineering choice
 - **Depends on:** G5.
 - **Files:** `src/episalpha/evaluation/cases.py`, `src/episalpha/evaluation/scoring.py`, `eval_cases/manifests/` and development fixtures.
 - **Build:** Versioned case schema, partition checks, label loading from evaluator-only location, evaluator hash, and per-case metrics.
-- **Metrics:** Citation correctness; supported-claim precision; required-fact recall; contradiction recall; correct abstention; temporal violations; completion; model requests; available usage/cost; latency.
+- **Metrics:** Citation correctness; numeric-correctness rate (share of model-proposed numbers matching recomputation before repair, amendment A8); supported-claim precision; required-fact recall; contradiction recall; correct abstention; temporal violations; completion; model requests; available usage/cost; latency.
 - **Acceptance:** Correct metric direction and denominators; empty answers cannot win by avoiding claims; failed cases remain in denominator; cross-partition duplicate families fail; labels cannot be loaded by research tool paths.
 - **Focused test:** `tests/evaluation/test_scoring.py`.
 - **Owner checkpoint:** Human validates labels before they become frozen evaluator inputs.
@@ -1161,7 +1194,7 @@ Store actual outputs and checks, not claims such as “works perfectly.” A val
 Only after demo gates pass:
 
 1. **Forward observation:** Timestamp forecasts before outcomes; define forecast target and benchmark explicitly.
-2. **Outcome evaluation:** Settle one horizon with exchange calendars, corporate actions, and defensible price/cost assumptions.
+2. **Outcome evaluation:** Settle one horizon with exchange calendars, corporate actions, and defensible price/cost assumptions. Candidate quantitative methods deferred by A8: event-window reaction vs a benchmark (needs adjusted prices), factor baselines (Fama-French), Deflated Sharpe and PBO — see blueprint §12.
 3. **Paper portfolio:** Add ledger and deterministic proposal/risk boundary as a separate scoped feature.
 4. **Graph-value evaluation:** Compare typed-graph retrieval against simpler retrieval on fixed tasks.
 5. **Infrastructure migration:** Add PostgreSQL or a graph engine only when concurrency/query requirements justify it.
@@ -1195,6 +1228,6 @@ External documentation was reviewed on 20 September 2026. Resolve and pin actual
 
 ## 17. Start here
 
-~~Execute **M0-T01 only** in the first coding session.~~ **M0 and M1 are complete and gated** (G0 offline passed with the live portion partial; G1 passed; schema version frozen at `1`). The next eligible task is **M2-T01**. Current state, real command output and open blockers live in `docs/implementation/progress.md`.
+~~Execute **M0-T01 only** in the first coding session.~~ **M0 and M1 are complete and gated** (G0 offline passed with the live portion partial; G1 passed; schema version frozen at `1`). M2 is complete and gated (G2, owner checkpoint outstanding). **Execution now runs from [`implementation/README.md`](implementation/README.md)** (amendment A10): pick the next task in `implementation/STATUS.md` — currently **M0-T04**, then M0-T05, M0-T06, M1-T05, M2-T05, M2-T06, M3-T01. Current state, real command output and open blockers live in `docs/implementation/progress.md`.
 
 Do not ask a coding model to “implement this entire plan.” Give it the current task, relevant contracts, and acceptance tests. Keep architectural decisions stable, checkpoints explicit, and subsequent work gated by observable results.
