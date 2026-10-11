@@ -40,7 +40,7 @@ Each phase folder has a `REPORT.md` (M0–M4) with what was built, verified, fou
 
 **Last verified (2026-10-11):**
 - Host: four checks green, `570 passed, 8 deselected`.
-- Inside the Docker app image (`docker compose run --rm check`): `diagnose: PASS | tests
+- Inside the Docker app image (`docker compose -f compose.yaml -f compose.dev.yaml run --rm check`): `diagnose: PASS | tests
   {'passed': 570, 'failed': 0, ...} | failures 0 | regressions 0 | orphans 0 | 69.1s`.
 
 **Live model budget.** About 28 of the 40 requests the owner approved for the overnight session
@@ -200,7 +200,7 @@ the arm64 Hermes build remain owner checks, not claimed passes.
   - a `PROGRESS.md` row with real command output;
   - the `STATUS.md` row.
 
-  Then run `uv run python scripts/diagnose.py` (in Docker: `docker compose run --rm check`).
+  Then run `uv run python scripts/diagnose.py` (in Docker: `docker compose -f compose.yaml -f compose.dev.yaml run --rm check`; expect `diagnose: PASS`).
 - **Red first.** Never weaken a test, skip a failure, or regenerate an expected answer.
 - **Fixtures stay fixtures.** `FakeRuntime` output is always labelled `[FIXTURE]` and never
   counts as a live pass. A blocked live gate stays blocked.

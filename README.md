@@ -18,7 +18,8 @@ docker compose run --rm cli export obsidian --run <run_id>   # vault: .episalpha
 docker compose -f compose.yaml -f compose.dev.yaml run --rm check   # expect diagnose: PASS
 ```
 
-Works the same on Linux, macOS and Windows (Docker Engine >= 26).
+Designed to work the same on Linux, macOS and Windows (Docker Engine >= 26); verified on Linux,
+macOS/Windows owner checks pending.
 See `HANDOFF.md` §3 for config, credentials, Linux uid/gid and the first dev-image build.
 
 ## Development

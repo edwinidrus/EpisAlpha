@@ -25,10 +25,12 @@ uv run pytest -q -m live tests/integration/test_hermes_probe.py
 CLI exit codes: 0 completed · 2 invalid request · 3 rejected · 4 failed/timed out ·
 5 abstained/partial · 6 cancelled.
 
-Docker (any Linux host; see `HANDOFF.md`): `docker compose build`, `docker compose run --rm check`
-(the four checks + diagnose), `docker compose up -d phoenix ui`, `docker compose run --rm cli ...`.
-Live Hermes runs add `-f compose.live.yaml` (Docker socket; owner approval per live run). The repo
-must be mounted at the same absolute path as on the host, so always run compose from the repo root.
+Docker (Linux, macOS, Windows; Engine >= 26, Compose >= 2.24; see `HANDOFF.md`): `docker compose build`,
+`docker compose up -d` (UI 127.0.0.1:8501, Phoenix :6006; override with EPISALPHA_UI_PORT /
+EPISALPHA_PHOENIX_PORT), `docker compose run --rm cli ...`, and the gate
+`docker compose -f compose.yaml -f compose.dev.yaml run --rm check` (four checks + diagnose).
+Live Hermes runs add `-f compose.live.yaml` (Docker socket; owner approval per live run). Run
+compose from the repo root; the stack uses relative mounts only (amendment A15).
 
 All four checks (`ruff check`, `ruff format --check`, `mypy`, `pytest -m "not live"`) run at every
 milestone gate. Tests requiring network, credentials, or a real model route must carry the `live`
