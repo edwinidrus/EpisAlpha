@@ -9,10 +9,12 @@ network, tries every forbidden access, and plants a symlink for the host reader.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import threading
 import time
+import uuid
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -20,14 +22,22 @@ from pathlib import Path
 import pytest
 
 from episalpha.runtime.hermes import read_worker_json
-from episalpha.runtime.sandbox import CONTAINER_OUT, WORKER_PYTHON, SandboxConfig, SandboxLauncher
+from episalpha.runtime.sandbox import (
+    CONTAINER_OUT,
+    WORKER_PYTHON,
+    SandboxConfig,
+    SandboxLauncher,
+    sandbox_config,
+)
 
 pytestmark = pytest.mark.live
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCK = json.loads((ROOT / "config" / "runtime.lock.json").read_text())
 IMAGE = LOCK["hermes"].get("worker_image", {}).get("id", "")
-HOST_HOME = str(Path.home())
+# In compose the test's HOME is its /tmp, so pass the host's real home explicitly.
+HOST_HOME = os.environ.get("EPISALPHA_PROBE_HOST_HOME") or str(Path.home())
+CONFIG = sandbox_config(IMAGE or "sha256:" + "0" * 64, os.environ)
 
 PROBE = r"""
 import json, os, socket, subprocess, urllib.request
@@ -51,6 +61,7 @@ attempt("https_example_com",
 attempt("dns_example_com", lambda: socket.getaddrinfo("example.com", 443))
 attempt("list_mnt_c", lambda: os.listdir("/mnt/c"))
 attempt("list_host_home", lambda: os.listdir(HOME))
+attempt("list_stage_volume_root", lambda: os.listdir("/stages"))
 attempt("docker_socket", lambda: os.stat("/var/run/docker.sock"))
 for host, port in [("172.31.252.1", 8000), ("172.31.252.1", 8080), ("172.17.0.1", 8000),
                    ("172.17.0.1", RELAY_PORT), ("172.31.252.2", 9999), ("1.1.1.1", 443)]:
@@ -98,7 +109,7 @@ def relay_stub() -> Iterator[int]:
         def log_message(self, format: str, *args: object) -> None:  # noqa: A002
             return None
 
-    server = HTTPServer(("172.17.0.1", 0), Handler)
+    server = HTTPServer((CONFIG.bind_host, 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     yield int(server.server_address[1])
@@ -110,6 +121,8 @@ def relay_stub() -> Iterator[int]:
 def launcher(tmp_path: Path) -> SandboxLauncher:
     if not IMAGE or shutil.which("docker") is None:
         pytest.skip("Docker or the pinned worker image is not available")
+    if CONFIG.topology == "compose":
+        return SandboxLauncher(CONFIG)  # no skills mount in compose yet (M8)
     skills = tmp_path / "skills"
     skills.mkdir()
     (skills / "promoted.md").write_text("a promoted skill")
@@ -117,7 +130,8 @@ def launcher(tmp_path: Path) -> SandboxLauncher:
 
 
 def stage_dirs(tmp_path: Path) -> tuple[Path, Path, Path]:
-    stage = tmp_path / "researching"
+    root = CONFIG.stage_root / f"probe-{uuid.uuid4().hex[:8]}" if CONFIG.stage_root else tmp_path
+    stage = root / "researching"
     out = stage / "out"
     out.mkdir(parents=True)
     out.chmod(0o777)
@@ -151,7 +165,8 @@ def test_every_forbidden_access_fails(
     assert results["uid"] == 10001
     with pytest.raises(OSError):
         read_worker_json(out / "result.json")  # the planted symlink is never followed
-    assert not (tmp_path / "skills" / "new-skill.md").exists()
+    if CONFIG.topology == "host":
+        assert not (tmp_path / "skills" / "new-skill.md").exists()
 
 
 def test_cancel_stops_the_worker_within_ten_seconds(

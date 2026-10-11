@@ -139,6 +139,8 @@ def _mount(config: SandboxConfig, source: Path, target: str, *, readonly: bool) 
     if config.stage_root is None:
         return f"type=bind,src={source},dst={target}{suffix}"
     sub_path = source.relative_to(config.stage_root).as_posix()  # ValueError outside the volume
+    if sub_path == "." or ".." in Path(sub_path).parts:
+        raise ValueError(f"unsafe stage sub-path: {source}")
     return f"type=volume,src={COMPOSE_STAGE_VOLUME},dst={target},volume-subpath={sub_path}{suffix}"
 
 

@@ -210,6 +210,15 @@ def test_compose_refuses_stage_paths_outside_the_volume(tmp_path: Path) -> None:
         worker_command(compose(), "w1", tmp_path / "spec.json", tmp_path / "out", ["x"])
 
 
+def test_compose_refuses_volume_root_and_parent_traversal_mounts() -> None:
+    stage = COMPOSE_STAGE_ROOT / "run"
+    for path in (COMPOSE_STAGE_ROOT, stage / ".." / "x"):
+        for spec, out in ((path, stage / "out"), (stage / "spec.json", path)):
+            with pytest.raises(ValueError) as error:
+                worker_command(compose(), "w1", spec, out, ["x"])
+            assert str(path) in str(error.value)
+
+
 def test_compose_has_no_skills_mount_yet() -> None:
     with pytest.raises(ValueError, match="skills"):
         SandboxConfig(image=IMAGE, topology="compose", skills_dir=Path("/opt/skills"))

@@ -598,6 +598,15 @@ def _hermes_readiness(workbench: Workbench) -> tuple[dict[str, Any], str | None]
     image = lock.get("hermes", {}).get("worker_image", {}).get("id")
     if not image or not shutil.which("docker"):
         raise _refuse("no isolated worker available: build the worker image (M3-T04) first")
+    from episalpha.runtime import sandbox
+
+    try:
+        config = sandbox.sandbox_config(str(image), os.environ)
+    except ValueError as error:
+        raise _refuse(f"no isolated worker available: {error}") from None
+    problem = sandbox.preflight(config, sandbox._docker)
+    if problem is not None:
+        raise _refuse(f"no isolated worker available: {problem}")
     return lock, str(image)
 
 
@@ -607,13 +616,14 @@ def _hermes_runtime(
     # Imported here: the fake path needs none of the Hermes machinery.
     from episalpha.runtime.hermes import HermesRuntime, LocalLauncher, WorkerLauncher, load_harness
     from episalpha.runtime.model_relay import ModelRelay, RelayServer
-    from episalpha.runtime.sandbox import SandboxConfig, SandboxLauncher
+    from episalpha.runtime.sandbox import SandboxLauncher, sandbox_config
 
     settings = workbench.settings
     route = settings.provider
     lock, image = _hermes_readiness(workbench)
     assert route.model_id is not None
     launcher: WorkerLauncher
+    stage_root: Path | None = None
     if os.environ.get("EPISALPHA_WORKER") == "local":
         vendor = workbench.project_root / ".episalpha" / "vendor"
         launcher = LocalLauncher(
@@ -625,7 +635,9 @@ def _hermes_runtime(
         )
     else:
         assert image is not None
-        launcher = SandboxLauncher(SandboxConfig(image=image))
+        sandbox_settings = sandbox_config(image, os.environ)
+        launcher = SandboxLauncher(sandbox_settings)
+        stage_root = sandbox_settings.stage_root
     token = secrets.token_hex(16)
     relay = ModelRelay(
         route,
@@ -651,7 +663,7 @@ def _hermes_runtime(
         tools_for=runner.tools_for,
         brief_for=runner.brief_for,
         launcher=launcher,
-        work_dir=workbench.data_root / "work",
+        work_dir=stage_root or workbench.data_root / "work",
     )
     return runtime, server.stop
 
