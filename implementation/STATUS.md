@@ -1,6 +1,6 @@
 # Status rollup
 
-Execution order runs top to bottom. **Next task: `M5-T04`.** Detail, real command output and
+Execution order runs top to bottom. **Next task: `M3-T05`.** Detail, real command output and
 blockers live in each phase's `PROGRESS.md`. Update both files when a task changes state.
 
 | # | Task | Title | Status | Depends on | Pack |
@@ -36,7 +36,9 @@ blockers live in each phase's `PROGRESS.md`. Update both files when a task chang
 | 28 | M5-T01 | Browser shell and research view | DONE | G4 | [pack](M5-browser-obsidian/tasks/M5-T01-browser-shell.md) |
 | 29 | M5-T02 | Evidence inspection and local graph | DONE | M5-T01 | [pack](M5-browser-obsidian/tasks/M5-T02-evidence-graph.md) |
 | 30 | M5-T03 | Deterministic Obsidian exporter | DONE | M5-T02 | [pack](M5-browser-obsidian/tasks/M5-T03-obsidian-export.md) |
-| 31 | **M5-T04** | Browser walkthrough and usability correction | **TODO** | M5-T03 | [pack](M5-browser-obsidian/tasks/M5-T04-walkthrough.md) |
+| 30a | M0-T08 | Portable offline Docker stack (A15) | DONE | M5-T03 | [pack](M0-foundation/tasks/M0-T08-portable-docker.md) |
+| 30b | **M3-T05** | Compose sandbox topology (A15) | **TODO** | M0-T08 | [pack](M3-runtime/tasks/M3-T05-compose-topology.md) |
+| 31 | M5-T04 | Browser walkthrough and usability correction | TODO | M5-T03 | [pack](M5-browser-obsidian/tasks/M5-T04-walkthrough.md) |
 | 32 | M6-T01 | Labeled cases and deterministic metrics | TODO | G5 | [pack](M6-evaluation/tasks/M6-T01-cases-metrics.md) |
 | 33 | M6-T02 | Candidate validation and lineage | TODO | M6-T01 | [pack](M6-evaluation/tasks/M6-T02-candidates.md) |
 | 34 | M6-T03 | Offline campaign runner | TODO | M6-T02 | [pack](M6-evaluation/tasks/M6-T03-campaign.md) |
@@ -57,7 +59,7 @@ blockers live in each phase's `PROGRESS.md`. Update both files when a task chang
 | G0 | **PASSED 2026-10-10** (re-run after A9/A11/A14) · owner review of probe findings outstanding | [M0 GATE](M0-foundation/GATE.md) |
 | G1 | **PASSED 2026-10-10** (re-run after A8) · owner review of serialized examples outstanding | [M1 GATE](M1-contracts/GATE.md) |
 | G2 | **PASSED 2026-10-10** (re-run after A8/A11/A14) · owner checkpoint (live ingestion + hand inspection) outstanding | [M2 GATE](M2-evidence/GATE.md) |
-| G3 | **PASSED 2026-10-11** · owner TODO: rootless Docker / userns-remap | [M3 GATE](M3-runtime/GATE.md) |
+| G3 | **reopened by A15 (M3-T05)** · earlier host pass 2026-10-11 retained; owner TODO: rootless Docker / userns-remap | [M3 GATE](M3-runtime/GATE.md) |
 | G4 | **PARTIAL 2026-10-11**: offline passed; real-case reviews BLOCKED on the G2 owner checkpoint | [M4 GATE](M4-research-cli/GATE.md) |
 | G5–G7 | Not started | phase `GATE.md` files |
 | G8 | Not started (post-v0.1 learning loop, A13) | [M8 GATE](M8-learning/GATE.md) |

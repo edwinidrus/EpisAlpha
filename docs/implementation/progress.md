@@ -67,6 +67,28 @@ verified facts instead of assumptions. Section 0 of the plan carries the full re
 
 The "Start here" section now points at M2-T01 rather than M0-T01.
 
+### A15 — Portable Docker orchestration (owner approved 2026-10-11)
+
+- **Decision:** the full stack, live Hermes runs included, runs from `git clone` +
+  `docker compose build` on Linux, macOS and Windows. Distribution by local build only.
+  Approach A (Docker-native).
+- **Design:** `docs/superpowers/specs/2026-10-11-portable-docker-design.md`.
+  **Plan:** `docs/superpowers/plans/2026-10-11-portable-docker.md`.
+- **Changes approved with it:**
+  1. The app and Phoenix share one network namespace (anchor `net`). Phoenix leaves its own
+     network but stays loopback-only from the host.
+  2. In the `compose` sandbox topology, the relay and MCP server listen inside that namespace
+     (reachable on `episalpha-app` only, token-protected) instead of on the `docker0` gateway.
+  3. Docker Engine >= 26 (API 1.45) is required.
+  4. M5 constitution article 9 now reads "reachable from the host's loopback only".
+  5. A one-shot `init` service prepares the bind-mount directories (rootful engines create them as root).
+- **Tasks:**
+  - M0-T08: portable offline stack;
+  - M3-T05: `compose` sandbox topology and live check. This reopens G3.
+- **Owner checks outstanding:** macOS Apple Silicon and Windows Docker Desktop. Run build →
+  check → up → fake run → live run, and confirm the `DOCKER_GID=0` socket access and the arm64
+  Hermes build.
+
 ## Repository note (not a task)
 
 `EpisAlpha_Architecture_and_Implementation_Blueprint.md:Zone.Identifier` is tracked in commit
