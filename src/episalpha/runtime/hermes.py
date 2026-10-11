@@ -188,6 +188,11 @@ class HermesRuntime:
         self.reports: list[StageReport] = []
         self.proposals: list[SkillProposal] = []
 
+    @property
+    def served_by(self) -> tuple[str, ...]:
+        """The upstream providers that answered, as the relay observed them."""
+        return self.relay.served_by
+
     def cancel(self) -> None:
         self._cancelled = True
         self.relay.cancel()

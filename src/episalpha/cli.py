@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 import typer
 
@@ -96,16 +96,7 @@ def _report(workbench: services.Workbench, record: RunRecord) -> None:
         typer.echo(f"warning: {warning}")
     if request.research_mode is ResearchMode.HISTORICAL_RECONSTRUCTION:
         typer.echo(f"notice: {RETROSPECTIVE_NOTICE}")
-    usage = record.usage
-    tokens = (
-        f"{usage.prompt_tokens}/{usage.completion_tokens}"
-        if usage.prompt_tokens is not None and usage.completion_tokens is not None
-        else "unknown"
-    )
-    typer.echo(
-        f"usage: model requests {usage.model_requests}, tool calls {usage.tool_calls}, "
-        f"tokens (prompt/completion) {tokens}, cost unknown"
-    )
+    typer.echo(f"usage: {services.usage_line(record.usage)}")
     if record.thesis_id:
         typer.echo(f"thesis: {record.thesis_id}")
     artifacts = RunArtifacts(workbench.runs_dir, request.run_id)
@@ -168,48 +159,11 @@ def research_run(
     now = _now()
     try:
         with span("cli.research.run", SpanKind.CHAIN, **{"episalpha.runtime_mode": mode.value}):
-            plan: dict[str, Any]
             if case is not None:
-                cases = services.load_cases(workbench.project_root)
-                if case not in cases:
-                    _fail(f"unknown case {case!r}; choose {sorted(cases)}")
-                chosen = cases[case]
-                fake = mode is RuntimeMode.FAKE
-                instrument = services.SYNTHETIC_INSTRUMENT if fake else chosen.instrument_id
-                plan = {
-                    "evidence": "synthetic" if fake else "case",
-                    "case": case,
-                    "fake_scenario": services.FAKE_SCENARIOS[case].value,
-                }
-                request = services.new_request(
-                    workbench,
-                    source=f"case:{case}:{'synthetic' if fake else 'filings'}",
-                    instrument_id=instrument,
-                    question=chosen.question,
-                    research_cutoff=chosen.research_cutoff,
-                    research_mode=chosen.research_mode,
-                    runtime_mode=mode,
-                    now=now,
-                )
+                request, plan = services.plan_case(workbench, case, mode, now=now)
             else:
                 assert snapshot is not None and question is not None
-                _, instrument, cutoff = services.snapshot_loader(workbench, snapshot)
-                plan = {
-                    "evidence": "snapshot",
-                    "snapshot_id": snapshot,
-                    "prior_run_id": services.prior_run_for_snapshot(workbench, snapshot),
-                    "fake_scenario": services.FAKE_SCENARIOS["supported"].value,
-                }
-                request = services.new_request(
-                    workbench,
-                    source=f"snapshot:{snapshot}",
-                    instrument_id=instrument,
-                    question=question,
-                    research_cutoff=cutoff,
-                    research_mode=ResearchMode.HISTORICAL_RECONSTRUCTION,
-                    runtime_mode=mode,
-                    now=now,
-                )
+                request, plan = services.plan_snapshot(workbench, snapshot, question, mode, now=now)
             record = services.submit(workbench, request, plan)
         record = services.execute(
             workbench, record.request.run_id, worker_id=f"cli-{os.getpid()}", now=_now
@@ -318,3 +272,7 @@ def replay(context: typer.Context, run_id: str) -> None:
     typer.echo(f"trace: {view.index.get('trace_id', '')}")
     workbench.close()
     shutdown_tracing()
+
+
+if __name__ == "__main__":  # the browser launches workers as ``python -m episalpha.cli``
+    app()

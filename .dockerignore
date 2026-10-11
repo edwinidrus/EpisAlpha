@@ -1,0 +1,3 @@
+# The app image needs one file. Everything else, above all .env and .episalpha/, stays out.
+*
+!container/app-entrypoint.sh

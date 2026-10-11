@@ -470,6 +470,25 @@ def test_usage_sums_across_attempts_and_cost_stays_unknown(
     assert usage["cost_eur"] is None
 
 
+def test_usage_tokens_stay_unknown_when_any_attempt_did_not_report_them(
+    seeded: Repository, connection: sqlite3.Connection
+) -> None:
+    """SQL SUM skips NULLs; a partial sum would present unknown usage as a smaller number."""
+    with transaction(connection):
+        seeded.admit_run(run_record())
+        seeded.save_stage_result("run.0001", 1, stage())
+        seeded.save_stage_result(
+            "run.0001",
+            1,
+            stage(stage=RunState.CRITIQUING, usage=Usage(model_requests=1, tool_calls=1)),
+        )
+
+    usage = seeded.run_usage("run.0001")
+    assert usage["model_requests"] == 3
+    assert usage["prompt_tokens"] is None
+    assert usage["completion_tokens"] is None
+
+
 # --- full-text search -----------------------------------------------------------------------------
 
 

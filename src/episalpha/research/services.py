@@ -2,7 +2,8 @@
 
 The CLI and the UI stay thin: they call these functions and print or render the result. Nothing
 here makes a model call by itself; :func:`execute` hands a claimed run to the runner with the
-runtime the run was admitted for.
+runtime the run was admitted for. The browser never executes a run on its render path: it
+admits, then :func:`launch` starts one detached ``research execute`` worker.
 
 Three evidence worlds, never mixed:
 
@@ -20,10 +21,12 @@ import json
 import os
 import secrets
 import shutil
+import subprocess
+import sys
 import time
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -37,14 +40,21 @@ from episalpha.contracts.knowledge import (
     TickerAlias,
 )
 from episalpha.contracts.research import (
+    RETROSPECTIVE_NOTICE,
+    TERMINAL_STATES,
     Budgets,
     ResearchMode,
     RunRecord,
     RunRequest,
     RunState,
     RuntimeMode,
+    StageResult,
+    Thesis,
+    ThesisSection,
+    Usage,
 )
-from episalpha.research.artifacts import ReplayView, replay
+from episalpha.observability import trace_url
+from episalpha.research.artifacts import ReplayView, RunArtifacts, replay
 from episalpha.research.runner import (
     Evidence,
     EvidenceLoader,
@@ -358,8 +368,83 @@ def new_request(
     )
 
 
+def _source(base: str, nonce: str) -> str:
+    # A browser form adds its nonce, so a new form is a new request; the CLI adds none.
+    return f"{base}#{nonce}" if nonce else base
+
+
+def plan_case(
+    workbench: Workbench, case: str, mode: RuntimeMode, *, now: datetime, nonce: str = ""
+) -> tuple[RunRequest, dict[str, Any]]:
+    """The request and execution plan for a demo case.
+
+    A fake run reads the synthetic corpus and is attached to the synthetic issuer, never to the
+    case's real ticker; a Hermes run reads the filings ingested for the case's CIK.
+    """
+    cases = load_cases(workbench.project_root)
+    if case not in cases:
+        raise _refuse(f"unknown case {case!r}; choose {sorted(cases)}")
+    chosen = cases[case]
+    fake = mode is RuntimeMode.FAKE
+    plan = {
+        "evidence": "synthetic" if fake else "case",
+        "case": case,
+        "fake_scenario": FAKE_SCENARIOS[case].value,
+    }
+    request = new_request(
+        workbench,
+        source=_source(f"case:{case}:{'synthetic' if fake else 'filings'}", nonce),
+        instrument_id=SYNTHETIC_INSTRUMENT if fake else chosen.instrument_id,
+        question=chosen.question,
+        research_cutoff=chosen.research_cutoff,
+        research_mode=chosen.research_mode,
+        runtime_mode=mode,
+        now=now,
+    )
+    return request, plan
+
+
+def plan_snapshot(
+    workbench: Workbench,
+    snapshot_id: str,
+    question: str,
+    mode: RuntimeMode,
+    *,
+    now: datetime,
+    nonce: str = "",
+) -> tuple[RunRequest, dict[str, Any]]:
+    """A fresh run on an existing snapshot, linked to the first run that used it."""
+    if not question.strip():
+        raise _refuse("a snapshot rerun needs a question; the snapshot fixes cutoff and instrument")
+    _, instrument, cutoff = snapshot_loader(workbench, snapshot_id)
+    plan = {
+        "evidence": "snapshot",
+        "snapshot_id": snapshot_id,
+        "prior_run_id": prior_run_for_snapshot(workbench, snapshot_id),
+        "fake_scenario": FAKE_SCENARIOS["supported"].value,
+    }
+    request = new_request(
+        workbench,
+        source=_source(f"snapshot:{snapshot_id}", nonce),
+        instrument_id=instrument,
+        question=question,
+        research_cutoff=cutoff,
+        research_mode=ResearchMode.HISTORICAL_RECONSTRUCTION,
+        runtime_mode=mode,
+        now=now,
+    )
+    return request, plan
+
+
 def submit(workbench: Workbench, request: RunRequest, plan: dict[str, Any]) -> RunRecord:
-    """Admit a run and record how to execute it (``submission.json``). Idempotent."""
+    """Admit a run and record how to execute it (``submission.json``). Idempotent.
+
+    A new Hermes run is refused *before* admission when its runtime could not start, so a run
+    that can never execute does not occupy v0.1's single job slot.
+    """
+    is_new = workbench.repo.run_by_idempotency_key(request.idempotency_key) is None
+    if is_new and request.runtime_mode is RuntimeMode.HERMES:
+        _hermes_readiness(workbench)
     record = admit(workbench.repo, request, now=request.requested_at)
     sidecar = workbench.runs_dir / record.request.run_id / "submission.json"
     if not sidecar.exists():
@@ -373,6 +458,47 @@ def submission_plan(workbench: Workbench, run_id: str) -> dict[str, Any]:
     if not path.is_file():
         raise _refuse(f"run {run_id!r} has no submission record")
     return json.loads(path.read_text())  # type: ignore[no-any-return]
+
+
+def launch(workbench: Workbench, run_id: str, config: Path, *, now: datetime) -> bool:
+    """Start the detached ``research execute`` worker for a queued run, at most once.
+
+    The guard is the exclusively created ``launch.json``, in persistence rather than in a
+    browser session: a rerun, a second click or a page refresh finds it and launches nothing.
+    Returns whether this call launched the worker.
+    """
+    record = workbench.repo.get_run(run_id)
+    if record is None:
+        raise _refuse(f"run {run_id!r} has not been admitted")
+    if record.state is not RunState.QUEUED:
+        return False
+    directory = workbench.runs_dir / run_id
+    directory.mkdir(parents=True, exist_ok=True)
+    try:
+        with (directory / "launch.json").open("x") as marker:
+            marker.write(json.dumps({"launched_at": now.isoformat()}))
+    except FileExistsError:
+        return False
+    command = [
+        *(sys.executable, "-m", "episalpha.cli", "--config", str(config.resolve())),
+        *("research", "execute", run_id),
+    ]
+    _spawn(command, workbench.project_root, directory / "worker.log")
+    return True
+
+
+def _spawn(command: list[str], cwd: Path, log: Path) -> None:
+    # ponytail: the browser process never waits; Python reaps the exited child on a later
+    # Popen. A supervisor would replace this if v0.1 ever ran more than one job.
+    with log.open("ab") as output:
+        subprocess.Popen(
+            command,
+            cwd=cwd,
+            stdin=subprocess.DEVNULL,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
 
 
 def _loader_for(workbench: Workbench, plan: dict[str, Any]) -> EvidenceLoader:
@@ -458,6 +584,23 @@ def _runtime_for(
     return _hermes_runtime(workbench, runner)
 
 
+def _hermes_readiness(workbench: Workbench) -> tuple[dict[str, Any], str | None]:
+    """Refuse unless a Hermes run could start: route credential exported, a worker available.
+
+    Returns the runtime lock and the worker image ID (``None`` for the local worker).
+    """
+    route = workbench.settings.provider
+    if route.credential() is None or route.model_id is None:
+        raise _refuse(f"the model route credential {route.api_key_env!r} is not exported")
+    lock = json.loads((workbench.project_root / "config" / "runtime.lock.json").read_text())
+    if os.environ.get("EPISALPHA_WORKER") == "local":
+        return lock, None
+    image = lock.get("hermes", {}).get("worker_image", {}).get("id")
+    if not image or not shutil.which("docker"):
+        raise _refuse("no isolated worker available: build the worker image (M3-T04) first")
+    return lock, str(image)
+
+
 def _hermes_runtime(
     workbench: Workbench, runner: ResearchRunner
 ) -> tuple[ResearchRuntimePort, Callable[[], None]]:
@@ -468,10 +611,8 @@ def _hermes_runtime(
 
     settings = workbench.settings
     route = settings.provider
-    if route.credential() is None or route.model_id is None:
-        raise _refuse(f"the model route credential {route.api_key_env!r} is not exported")
-    lock = json.loads((workbench.project_root / "config" / "runtime.lock.json").read_text())
-    image = lock.get("hermes", {}).get("worker_image", {}).get("id")
+    lock, image = _hermes_readiness(workbench)
+    assert route.model_id is not None
     launcher: WorkerLauncher
     if os.environ.get("EPISALPHA_WORKER") == "local":
         vendor = workbench.project_root / ".episalpha" / "vendor"
@@ -482,10 +623,9 @@ def _hermes_runtime(
             ],
             cwd=vendor / "hermes-agent",
         )
-    elif image and shutil.which("docker"):
-        launcher = SandboxLauncher(SandboxConfig(image=image))
     else:
-        raise _refuse("no isolated worker available: build the worker image (M3-T04) first")
+        assert image is not None
+        launcher = SandboxLauncher(SandboxConfig(image=image))
     token = secrets.token_hex(16)
     relay = ModelRelay(
         route,
@@ -522,3 +662,120 @@ def cancel(workbench: Workbench, run_id: str, *, now: datetime) -> RunRecord:
         raise _refuse(f"run {run_id!r} does not exist")
     request_cancel(workbench.repo, run_id, now=now)
     return record
+
+
+# --- reading runs back (CLI status, browser) ------------------------------------------------
+
+
+def usage_line(usage: Usage) -> str:
+    """Reported usage; a count the provider did not report is "unknown", never 0."""
+    tokens = (
+        f"{usage.prompt_tokens}/{usage.completion_tokens}"
+        if usage.prompt_tokens is not None and usage.completion_tokens is not None
+        else "unknown"
+    )
+    return (
+        f"model requests {usage.model_requests}, tool calls {usage.tool_calls}, "
+        f"tokens (prompt/completion) {tokens}, cost unknown"
+    )
+
+
+def recent_runs(workbench: Workbench, *, limit: int = 20) -> list[RunRecord]:
+    rows = workbench.repo.connection.execute(
+        "SELECT run_id FROM run ORDER BY started_at DESC, rowid DESC LIMIT ?", (limit,)
+    ).fetchall()
+    return [run for row in rows if (run := workbench.repo.get_run(row["run_id"])) is not None]
+
+
+@dataclass(frozen=True)
+class Reference:
+    """One record an assertion cites, with the status chips the reader must see."""
+
+    record_id: str
+    epistemic_status: str
+    review_status: str
+
+
+@dataclass(frozen=True)
+class AssertionView:
+    section: ThesisSection
+    text: str
+    references: tuple[Reference, ...]
+
+
+@dataclass(frozen=True)
+class RunView:
+    """Everything the browser shows about one run, read from persistence and artifacts."""
+
+    record: RunRecord
+    stages: tuple[StageResult, ...]
+    provenance: dict[str, Any]
+    trace_link: str | None
+    elapsed_seconds: int
+    thesis: Thesis | None = None
+    assertions: tuple[AssertionView, ...] = ()
+    verified_artifacts: int = 0
+    integrity_error: str | None = None
+
+    @property
+    def fixture(self) -> bool:
+        return self.record.request.runtime_mode is RuntimeMode.FAKE
+
+    @property
+    def finished(self) -> bool:
+        return self.record.state in TERMINAL_STATES
+
+    @property
+    def notice(self) -> str | None:
+        mode = self.record.request.research_mode
+        return RETROSPECTIVE_NOTICE if mode is ResearchMode.HISTORICAL_RECONSTRUCTION else None
+
+
+def run_view(workbench: Workbench, run_id: str, *, now: datetime) -> RunView:
+    """One run as stored. A finished run's thesis comes from its verified saved artifacts."""
+    record = workbench.repo.get_run(run_id)
+    if record is None:
+        raise _refuse(f"run {run_id!r} does not exist")
+    provenance = RunArtifacts(workbench.runs_dir, run_id).provenance
+    trace_id = provenance.get("trace_id")
+    view = RunView(
+        record=record,
+        stages=workbench.repo.stage_results(run_id),
+        provenance=provenance,
+        trace_link=trace_url(trace_id) if trace_id else None,
+        elapsed_seconds=max(0, int(((record.ended_at or now) - record.started_at).total_seconds())),
+    )
+    if record.state not in TERMINAL_STATES or record.snapshot_id is None:
+        return view
+    try:
+        saved = replay_run(workbench, run_id)
+    except EpisAlphaError as error:
+        return replace(view, integrity_error=str(error))
+    if saved.thesis is None:
+        return replace(view, verified_artifacts=saved.verified)
+    thesis = Thesis.model_validate(saved.thesis)
+    statuses = {item["claim_id"]: item["epistemic_status"] for item in saved.records["claims"]}
+    # A hypothesis is hypothesized by definition; the contract has no status field for it.
+    statuses |= {item["hypothesis_id"]: "hypothesized" for item in saved.records["hypotheses"]}
+    assertions = tuple(
+        AssertionView(
+            section=assertion.section,
+            text=assertion.text,
+            references=tuple(
+                _reference(workbench, record_id, statuses)
+                for record_id in (*assertion.claim_ids, *assertion.hypothesis_ids)
+            ),
+        )
+        for assertion in thesis.assertions
+    )
+    return replace(view, thesis=thesis, assertions=assertions, verified_artifacts=saved.verified)
+
+
+def _reference(workbench: Workbench, record_id: str, statuses: dict[str, str]) -> Reference:
+    epistemic = statuses.get(record_id)
+    if epistemic is None:  # a snapshot claim, not one this run created
+        claim_ = workbench.repo.get_claim(record_id)
+        epistemic = claim_.epistemic_status.value if claim_ is not None else "unknown"
+    assessment = workbench.repo.current_assessment(record_id)
+    review = assessment.judgment.value if assessment is not None else "unreviewed"
+    return Reference(record_id=record_id, epistemic_status=epistemic, review_status=review)

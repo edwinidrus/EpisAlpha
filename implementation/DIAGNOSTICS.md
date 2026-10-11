@@ -6,8 +6,8 @@ Written by `uv run python scripts/diagnose.py`. Do not edit by hand; history is 
 ## Summary
 
 - Verdict: **PASS**
-- Timestamp: 2026-10-11T06:53:05+00:00
-- Git HEAD: `cf2bd8d` (dirty working tree)
+- Timestamp: 2026-10-11T07:53:39+00:00
+- Git HEAD: `6ba3836` (dirty working tree)
 
 ## Checks
 

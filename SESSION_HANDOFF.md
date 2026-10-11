@@ -1,3 +1,6 @@
+> **Superseded on 2026-10-11 by [`HANDOFF.md`](HANDOFF.md).** This file is the 2026-09-20
+> handoff (M0-T01), kept for history only; its state and next steps are out of date.
+
 # EpisAlpha — Session Handoff for Continuation
 
 **Date:** 20 September 2026

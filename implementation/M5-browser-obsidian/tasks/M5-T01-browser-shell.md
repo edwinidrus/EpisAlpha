@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | TODO |
+| Status | DONE |
 | Depends on | G4 |
 | Phase constitution | [../CONSTITUTION.md](../CONSTITUTION.md) (inherits [global](../../CONSTITUTION.md)) |
 | Plan source | plan §11 M5-T01 card, §3.6 "Background execution"; acceptance rows A11, A22, A23 |

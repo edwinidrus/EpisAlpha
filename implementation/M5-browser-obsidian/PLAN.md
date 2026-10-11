@@ -10,7 +10,7 @@ A15, A21, A22, A23.
 
 | Task | Title | Status | Depends on | Pack |
 |---|---|---|---|---|
-| M5-T01 | Browser shell and research view | TODO | G4 | [pack](tasks/M5-T01-browser-shell.md) |
+| M5-T01 | Browser shell and research view | DONE | G4 | [pack](tasks/M5-T01-browser-shell.md) |
 | M5-T02 | Evidence inspection and local graph | TODO | M5-T01 | [pack](tasks/M5-T02-evidence-graph.md) |
 | M5-T03 | Deterministic Obsidian exporter | TODO | M5-T02 | [pack](tasks/M5-T03-obsidian-export.md) |
 | M5-T04 | Browser walkthrough and usability correction | TODO | M5-T03 | [pack](tasks/M5-T04-walkthrough.md) |

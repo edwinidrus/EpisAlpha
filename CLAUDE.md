@@ -15,6 +15,10 @@ uv run pytest -q -m live tests/integration/test_hermes_probe.py   # opt-in live 
 uv run pytest -q tests/contracts/test_settings.py::test_name      # single test
 ```
 
+Docker (any Linux host; see `HANDOFF.md`): `docker compose build`, `docker compose run --rm check`
+(the four checks + diagnose), `docker compose up -d phoenix ui`, `docker compose run --rm cli ...`.
+Live Hermes runs add `-f compose.live.yaml` (Docker socket; owner approval per live run).
+
 All four checks (`ruff check`, `ruff format --check`, `mypy`, `pytest -m "not live"`) run at every
 milestone gate. Tests requiring network, credentials, or a real model route must carry the `live`
 marker; the default suite must pass with no external network.
@@ -35,9 +39,10 @@ building anything:
   paper portfolio, evolution lab, evaluation science, trust zones). Do not load it by default;
   consult specific sections when the plan points there.
 
-Current state: M0–M2 implemented (gates G0 offline, G1, G2 passed; G0 live partial — Hermes
-runtime unproven). Gates G0–G2 are reopened by amendments A8–A11. M0-T04 (OpenRouter route) DONE.
-Next task: `M0-T05`, then `M0-T06`, `M0-T07`, `M1-T05`, `M2-T05`, `M2-T06`, `M3-T01`. `implementation/STATUS.md` is the source of truth for task status; anything in plan
+Current state (2026-10-11): M0–M4 implemented (G0–G3 passed; G4 PARTIAL, M4-T04 blocked on the
+G2 owner checkpoint); M5-T01 (Streamlit research view) DONE. Next task: `M5-T02`. Start with
+`HANDOFF.md` (status, Docker setup, owner blockers). `implementation/STATUS.md` is the source of
+truth for task status; anything in plan
 §4.1 not present on disk is target structure, not existing code.
 
 Research model route (amendment A9): OpenRouter `nvidia/nemotron-3-ultra-550b-a55b:free` via

@@ -1,0 +1,22 @@
+# Live Hermes runs from the containers. Linux Docker Engine only (including WSL2 with the
+# engine installed); Docker Desktop has no docker0 gateway for the sandbox. See HANDOFF.md.
+#
+#   export DOCKER_GID=$(stat -c %g /var/run/docker.sock)
+#   docker compose -f compose.yaml -f compose.live.yaml run --rm setup-worker   # once per machine
+#   docker compose -f compose.yaml -f compose.live.yaml up -d ui
+#   docker compose -f compose.yaml -f compose.live.yaml run --rm cli \
+#       research run --case supported --runtime hermes
+#
+# WARNING: the Docker socket gives these containers control of the host's Docker daemon, which
+# is root-equivalent on a rootful engine. Only the trusted application gets it, never the
+# research worker. That is why it lives in this separate file and not in compose.yaml.
+x-socket: &socket
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+  group_add:
+    - "${DOCKER_GID:-999}"
+
+services:
+  ui: *socket
+  cli: *socket
+  setup-worker: *socket

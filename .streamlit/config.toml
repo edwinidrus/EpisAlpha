@@ -1,0 +1,7 @@
+# EpisAlpha browser workbench (M5 constitution article 9: localhost only in v0.1).
+[server]
+address = "127.0.0.1"
+headless = true
+
+[browser]
+gatherUsageStats = false

@@ -911,6 +911,7 @@ class ResearchRunner:
                 trace_id=self.trace_id,
                 runtime=self.record.request.runtime_mode.value,
                 model_identifier=str(getattr(runtime, "model_id", "unknown")),
+                served_by=sorted(set(getattr(runtime, "served_by", ()))),
                 snapshot_id=self.view.manifest.snapshot_id if self.view else None,
                 snapshot_hash=self.view.manifest.snapshot_hash if self.view else None,
                 harness_id=self.record.request.harness_id,

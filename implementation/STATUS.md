@@ -1,6 +1,6 @@
 # Status rollup
 
-Execution order runs top to bottom. **Next task: `M5-T01`.** Detail, real command output and
+Execution order runs top to bottom. **Next task: `M5-T02`.** Detail, real command output and
 blockers live in each phase's `PROGRESS.md`. Update both files when a task changes state.
 
 | # | Task | Title | Status | Depends on | Pack |
@@ -33,8 +33,8 @@ blockers live in each phase's `PROGRESS.md`. Update both files when a task chang
 | 25 | M4-T02 | CLI commands | DONE | M4-T01 | [pack](M4-research-cli/tasks/M4-T02-cli.md) |
 | 26 | M4-T03 | Replay and recovery semantics | DONE | M4-T02 | [pack](M4-research-cli/tasks/M4-T03-replay-recovery.md) |
 | 27 | M4-T04 | Real thesis quality review | BLOCKED | M4-T03 | [pack](M4-research-cli/tasks/M4-T04-quality-review.md) |
-| 28 | **M5-T01** | Browser shell and research view | **TODO** | G4 | [pack](M5-browser-obsidian/tasks/M5-T01-browser-shell.md) |
-| 29 | M5-T02 | Evidence inspection and local graph | TODO | M5-T01 | [pack](M5-browser-obsidian/tasks/M5-T02-evidence-graph.md) |
+| 28 | M5-T01 | Browser shell and research view | DONE | G4 | [pack](M5-browser-obsidian/tasks/M5-T01-browser-shell.md) |
+| 29 | **M5-T02** | Evidence inspection and local graph | **TODO** | M5-T01 | [pack](M5-browser-obsidian/tasks/M5-T02-evidence-graph.md) |
 | 30 | M5-T03 | Deterministic Obsidian exporter | TODO | M5-T02 | [pack](M5-browser-obsidian/tasks/M5-T03-obsidian-export.md) |
 | 31 | M5-T04 | Browser walkthrough and usability correction | TODO | M5-T03 | [pack](M5-browser-obsidian/tasks/M5-T04-walkthrough.md) |
 | 32 | M6-T01 | Labeled cases and deterministic metrics | TODO | G5 | [pack](M6-evaluation/tasks/M6-T01-cases-metrics.md) |

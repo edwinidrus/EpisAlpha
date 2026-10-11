@@ -238,3 +238,16 @@ def test_recover_refuses_finished_and_unknown_runs(config: Path) -> None:
     run_id = run_id_of(cli(config, "research", "run", "--case", "supported").output)
     assert cli(config, "research", "recover", run_id).exit_code == 2
     assert cli(config, "research", "recover", "run-unknown").exit_code == 2
+
+
+def test_a_hermes_run_that_cannot_start_is_refused_before_admission(
+    config: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: the run used to be admitted and claimed, then stay QUEUED forever,
+    occupying the single job slot so that every later admission was refused."""
+    cli(config, "demo", "seed")
+    monkeypatch.delenv("EPISALPHA_TEST_KEY")
+    refused = cli(config, "research", "run", "--case", "supported", "--runtime", "hermes")
+    assert refused.exit_code == 2
+    assert "not exported" in refused.output
+    assert cli(config, "research", "run", "--case", "supported").exit_code == 0

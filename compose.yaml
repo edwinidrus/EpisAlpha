@@ -1,0 +1,62 @@
+# EpisAlpha orchestrated with Docker: the same commands on any Linux host with Docker Engine
+# (and WSL2). Run every command from the repository root. Full guide: HANDOFF.md.
+#
+#   docker compose build                                      # the app image
+#   docker compose up -d phoenix ui                           # Phoenix :6006, workbench :8501
+#   docker compose run --rm cli demo seed                     # the CLI
+#   docker compose run --rm cli research run --case supported # a fake (fixture) run
+#   docker compose run --rm check                             # quality gate: four checks + diagnose
+#
+# Live Hermes runs and the worker build need the host's Docker socket: compose.live.yaml.
+name: episalpha
+
+include:
+  - observability/compose.yaml   # phoenix, bound to 127.0.0.1:6006
+
+x-app: &app
+  build: .
+  image: episalpha-app:local
+  # Your uid/gid, so files written into the repository stay yours.
+  user: "${EPISALPHA_UID:-1000}:${EPISALPHA_GID:-1000}"
+  # Host networking keeps every binding exactly as on the host: Streamlit on 127.0.0.1:8501,
+  # Phoenix reached at 127.0.0.1:6006 (the settings accept a loopback endpoint only), and the
+  # relay and tool server on the docker0 gateway for the sandboxed worker.
+  network_mode: host
+  # Same path inside as outside: the worker's bind mounts are resolved by the host daemon.
+  working_dir: ${PWD}
+  volumes:
+    - ${PWD}:${PWD}
+    - venv:/opt/venv
+    - uv-cache:/opt/uv-cache
+  env_file:
+    - path: .env          # git-ignored; holds the ENV: credentials named in config/demo.toml
+      required: false
+  environment:
+    EPISALPHA_CONFIG: config/demo.toml
+    HOME: /tmp
+
+services:
+  ui:
+    <<: *app
+    command: ["streamlit", "run", "apps/streamlit_app.py"]
+    restart: unless-stopped
+
+  cli:
+    <<: *app
+    profiles: [tools]
+    entrypoint: ["episalpha-entrypoint", "episalpha"]
+    command: ["--help"]
+
+  check:
+    <<: *app
+    profiles: [tools]
+    command: ["python", "scripts/diagnose.py"]
+
+  setup-worker:
+    <<: *app
+    profiles: [tools]
+    command: ["python", "scripts/setup_worker.py"]
+
+volumes:
+  venv:
+  uv-cache:

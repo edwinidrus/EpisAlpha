@@ -437,7 +437,11 @@ class Repository:
         row = self.connection.execute(
             "SELECT COALESCE(SUM(model_requests), 0) AS model_requests, "
             "COALESCE(SUM(tool_calls), 0) AS tool_calls, "
-            "SUM(prompt_tokens) AS prompt_tokens, SUM(completion_tokens) AS completion_tokens "
+            # SUM skips NULLs: one unreported attempt makes the whole total unknown.
+            "CASE WHEN COUNT(prompt_tokens) = COUNT(*) THEN SUM(prompt_tokens) END "
+            "AS prompt_tokens, "
+            "CASE WHEN COUNT(completion_tokens) = COUNT(*) THEN SUM(completion_tokens) END "
+            "AS completion_tokens "
             "FROM stage_result WHERE run_id = ?",
             (run_id,),
         ).fetchone()

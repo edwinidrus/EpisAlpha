@@ -2,15 +2,20 @@
 
 Evidence-grounded personal investment research workbench.
 
-Current implementation scope: milestone M0 (bootstrap, settings, route probe) and milestone M1
-(canonical contracts). It provides a typed Python package, developer tooling, a versioned CLI
-entry point, one validated settings object owning every runtime limit, the frozen knowledge and
-research contracts at schema version 1, the temporal eligibility policy, and the deterministic
-structural validator.
+Status (2026-10-11): milestones M0–M4 are implemented and M5-T01 (the Streamlit research
+view) is done. That covers contracts, evidence storage and snapshots, the isolated Hermes
+runtime, the research runner, the CLI with replay and recovery, and the browser view. Task
+status lives in `implementation/STATUS.md`; to set up a new machine, start with `HANDOFF.md`.
 
-Not implemented yet: persistence, source connectors, snapshots, the Hermes runtime, the research
-runner, the browser workbench, and the evaluation harness. Progress and gate results are tracked
-in `docs/implementation/progress.md`.
+## Docker (recommended)
+
+```bash
+export EPISALPHA_UID=$(id -u) EPISALPHA_GID=$(id -g)
+docker compose build
+docker compose run --rm check                 # ruff, format, mypy, pytest (offline) + diagnose
+docker compose up -d phoenix ui               # http://127.0.0.1:6006 and http://127.0.0.1:8501
+docker compose run --rm cli research run --case supported
+```
 
 ## Development
 
@@ -50,8 +55,8 @@ keys are rejected, in nested tables too, so a typo fails loudly instead of being
 kind of thing the source is. The filings source must be `primary`, and social sources ship
 disabled because they cannot establish that anything is true.
 
-Two credentials are referenced: `ollama_api_key` for the model route and `ALPHAVANTAGE_API_KEY`
-for prices. A missing key never fails the load — `Settings.sources.missing_credentials` lists
+Two credentials are referenced: `openrouter_api_key` for the model route and
+`alpha_vantage_api_key` for prices. A missing key never fails the load — `Settings.sources.missing_credentials` lists
 which enabled sources cannot currently authenticate.
 
 **Path rule.** A relative `project_root` resolves from the configuration file's own directory, and
@@ -61,7 +66,7 @@ so loading the same file from anywhere gives the same paths.
 **Credential rule.** Credentials are environment *references*, never values:
 
 ```toml
-api_key_env = "ENV:ollama_api_key"   # the variable NAME, never the key
+api_key_env = "ENV:openrouter_api_key"   # the variable NAME, never the key
 ```
 
 ```bash
