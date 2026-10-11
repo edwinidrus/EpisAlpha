@@ -19,6 +19,7 @@ import re
 import secrets
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -27,6 +28,8 @@ import streamlit as st
 
 from episalpha.contracts.errors import EpisAlphaError
 from episalpha.contracts.research import TERMINAL_STATES, RunState, RuntimeMode, ThesisSection
+from episalpha.knowledge import query
+from episalpha.knowledge.export_obsidian import export_knowledge
 from episalpha.observability import SpanKind, annotate, configure_tracing, span
 from episalpha.research import services
 from episalpha.settings import Settings, load_settings
@@ -242,6 +245,194 @@ def thesis_section(view: services.RunView) -> None:
     st.text(f"next inquiry: {thesis.next_inquiry}")
 
 
+# --- evidence and knowledge (M5-T02) --------------------------------------------------------
+
+
+def stamp(value: datetime | None) -> str:
+    return value.isoformat() if value is not None else "unknown"
+
+
+def selected_knowledge(settings: Settings) -> query.RunKnowledge | None:
+    """The run picked on the Research tab, read from its verified artifacts."""
+    run_id = st.session_state.get("run_picker")
+    if not run_id:
+        st.info("No run selected. Pick one on the Research tab.")
+        return None
+    with opened(settings) as workbench:
+        try:
+            knowledge = query.load_run(workbench.repo, workbench.runs_dir, run_id)
+        except EpisAlphaError as error:
+            st.error(str(error))
+            return None
+    if knowledge is None:
+        st.info(
+            f"Run {run_id} has nothing to inspect yet: it is still running or froze no snapshot."
+        )
+        return None
+    st.caption(f"run {md(run_id)} · snapshot {md(knowledge.manifest.snapshot_id)}")
+    if knowledge.runtime is RuntimeMode.FAKE:
+        st.warning(FIXTURE_LABEL)
+    if not knowledge.persisted:
+        st.warning("Validation rejected these records: saved for inspection, never persisted.")
+    return knowledge
+
+
+def claim_trace(trace: query.ClaimTrace) -> None:
+    claim = trace.claim
+    review = trace.review_status
+    origin = "created by this run" if trace.in_run else "snapshot claim"
+    st.markdown(
+        f"**{md(claim.claim_id)}** :blue-badge[{md(claim.epistemic_status.value)}] "
+        f":{REVIEW_COLORS.get(review, 'gray')}-badge[{md(review)}] · {md(origin)}"
+    )
+    st.text(claim.statement)
+    lines = [f"attribution: {claim.attribution}", f"claim created: {stamp(claim.created_at)}"]
+    if (fact := claim.numeric_fact) is not None:
+        lines.append(
+            f"value: {fact.metric} = {fact.value} {fact.unit} "
+            f"(period {fact.period_start.date()}..{fact.period_end.date()}, "
+            f"{fact.accounting_basis})"
+        )
+    if trace.contradicts:
+        lines.append(f"contradicts: {', '.join(trace.contradicts)}")
+    if trace.contradicted_by:
+        lines.append(f"contradicted by: {', '.join(trace.contradicted_by)}")
+    st.text("\n".join(lines))
+    if (chain := trace.chain) is not None:
+        st.dataframe(
+            [
+                {
+                    "input claim": item.claim_id,
+                    "value": str(item.value) if item.value is not None else "unknown",
+                    "unit": item.unit or "unknown",
+                    "period": f"{item.period_start.date()}..{item.period_end.date()}"
+                    if item.period_start and item.period_end
+                    else "unknown",
+                }
+                for item in chain.inputs
+            ],
+            hide_index=True,
+        )
+        method = f"{chain.method}@{chain.method_version}"
+        if chain.value is None:
+            st.error(f"{method} cannot be recomputed: {chain.error}")
+        else:
+            st.text(f"{method} = {chain.value} {chain.unit} (claimed {chain.claimed or 'nothing'})")
+            if chain.matches is False:
+                st.error("The claimed value does not match the registered derivation.")
+            elif chain.matches:
+                st.caption("Recomputed by the registered derivation; the claimed value matches.")
+    for passage in trace.passages:
+        span, document = passage.span, passage.document
+        lines = [
+            f"span {span.span_id} [{span.start_offset}:{span.end_offset}] "
+            f"{span.section_locator or ''} in {span.document_id} (cited by {passage.cited_by})"
+        ]
+        if document is not None:
+            lines += [
+                f"source: {document.source_type} {document.source_uri} · "
+                f"family {document.source_family_id}",
+                f"published {stamp(document.published_at)} · publicly available "
+                f"{stamp(document.public_available_at)} ({document.availability_basis.value}) · "
+                f"captured {stamp(document.ingested_at)}",
+            ]
+        st.text("\n".join(lines))
+        st.code(span.exact_quote, language=None, wrap_lines=True)  # untrusted: never HTML
+
+
+def evidence_tab(settings: Settings) -> None:
+    knowledge = selected_knowledge(settings)
+    if knowledge is None:
+        return
+    if knowledge.thesis is None:
+        st.info("This run has no thesis to drill into; the Knowledge tab lists its records.")
+        return
+    assertions = {a.assertion_id: a for a in knowledge.thesis.assertions}
+    assertion_id = st.selectbox(
+        "Assertion",
+        list(assertions),
+        key=f"assertion-{knowledge.run_id}",
+        format_func=lambda i: f"{assertions[i].section.value} · {assertions[i].text[:90]}",
+    )
+    drill = query.assertion_drilldown(knowledge, str(assertion_id))
+    st.text(drill.assertion.text)
+    st.text(
+        f"research cutoff: {stamp(drill.research_cutoff)} · "
+        f"run executed: {stamp(drill.executed_at)}"
+    )
+    for missing in drill.missing:
+        st.error(f"{missing} is not in this run's records.")
+    for family, documents in drill.shared_lineage:
+        st.warning(
+            f"Common lineage: {md(', '.join(documents))} share source family {md(family)}. "
+            "They are one source, not independent confirmations."
+        )
+    for trace in drill.claims:
+        claim_trace(trace)
+    for item in drill.hypotheses:
+        hypothesis = item.hypothesis
+        st.markdown(
+            f"**{md(hypothesis.hypothesis_id)}** :blue-badge[hypothesized] "
+            f":{REVIEW_COLORS.get(item.review_status, 'gray')}-badge[{md(item.review_status)}]"
+        )
+        st.text(
+            "\n".join(
+                [
+                    f"mechanism: {hypothesis.mechanism}",
+                    *(f"assumption: {a}" for a in hypothesis.assumptions),
+                    f"falsified if: {hypothesis.falsification_condition}",
+                    f"supporting: {', '.join(hypothesis.supporting_claim_ids) or 'none'}",
+                    f"opposing: {', '.join(hypothesis.opposing_claim_ids) or 'none'}",
+                    f"horizon: {hypothesis.horizon_trading_days} trading days",
+                ]
+            )
+        )
+
+
+def knowledge_tab(settings: Settings) -> None:
+    knowledge = selected_knowledge(settings)
+    if knowledge is None:
+        return
+    st.subheader("Relations")
+    st.caption(
+        "UPPERCASE labels are relation predicates. Origin 'recorded' is a stored relation; other "
+        "origins name the record whose fields imply the edge. 'cites' and 'derivation input' are "
+        "references, not relations."
+    )
+    st.dataframe([asdict(row) for row in query.relation_table(knowledge)], hide_index=True)
+    st.subheader("Graph")
+    limit = settings.limits.max_graph_nodes
+    graph = query.local_graph(knowledge, limit=limit)
+    if graph.truncated:
+        st.warning(f"Graph cut at {limit} nodes around the thesis; the relation table is complete.")
+    try:
+        st.graphviz_chart(query.to_dot(graph))
+    except Exception as error:  # noqa: BLE001 - the table above must survive any layout failure
+        st.warning(f"Graph layout failed ({type(error).__name__}); the relation table is complete.")
+    export_section(settings, knowledge)
+
+
+def export_section(settings: Settings, knowledge: query.RunKnowledge) -> None:
+    st.subheader("Obsidian")
+    vault = settings.paths.data_root / "exports" / "vault"
+    st.caption(
+        f"One-way export to `{md(str(vault))}`: notes are rewritten byte-identically, "
+        "`annotations/` is never touched, and an edited note moves the export to a new folder."
+    )
+    if st.button("Export to Obsidian vault", key=f"export-{knowledge.run_id}"):
+        try:
+            result = export_knowledge(knowledge, vault)
+        except EpisAlphaError as error:
+            st.error(str(error))
+            return
+        st.success(
+            f"Exported {result.files} files to "
+            f"`{md(result.destination.relative_to(vault.resolve()).as_posix())}`."
+        )
+        for name in result.conflicts:
+            st.warning(f"Edited note left untouched: generated/{md(name)}")
+
+
 # --- page ----------------------------------------------------------------------------------
 
 
@@ -281,9 +472,9 @@ def main() -> None:
     with research:
         research_tab(settings)
     with evidence:
-        st.info("Not built yet: evidence inspection and the local graph arrive in M5-T02.")
+        evidence_tab(settings)
     with knowledge:
-        st.info("Not built yet: knowledge views and the Obsidian export arrive in M5-T02/T03.")
+        knowledge_tab(settings)
     with experiments:
         st.info("Not built yet: baseline-versus-challenger reports arrive in M6-T04.")
 

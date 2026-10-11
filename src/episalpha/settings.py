@@ -288,6 +288,8 @@ class Limits(_Base):
     max_skill_proposals: int = Field(default=2, ge=0, le=8)
     """``propose_skill`` calls allowed per run (amendment A13)."""
     max_skill_proposal_bytes: int = Field(default=4096, ge=256, le=65_536)
+    max_graph_nodes: int = Field(default=50, ge=1, le=50)
+    """Nodes in the browser's run-scoped graph (M5-T02); the M5 constitution caps it at 50."""
     eur_cap: DecimalString | None = None
 
     @model_validator(mode="after")

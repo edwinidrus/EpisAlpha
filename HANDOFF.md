@@ -77,13 +77,14 @@ export EPISALPHA_UID=$(id -u) EPISALPHA_GID=$(id -g)
 # 3. Build, then run the quality gate in the container. The first start syncs the venv from
 #    uv.lock into a named volume (about 2 minutes); later starts are instant.
 docker compose build
-docker compose run --rm check          # four checks + diagnose; expect 570 passed
+docker compose run --rm check          # four checks + diagnose; expect 606 passed
 
 # 4. Use it.
 docker compose up -d phoenix ui         # Phoenix http://127.0.0.1:6006, workbench http://127.0.0.1:8501
 docker compose run --rm cli demo seed
 docker compose run --rm cli research run --case supported      # a [FIXTURE] fake run
 docker compose run --rm cli replay <run_id>
+docker compose run --rm cli export obsidian --run <run_id>     # open .episalpha/exports/vault in Obsidian
 ```
 
 **Phoenix traces.** To send traces to Phoenix, uncomment `otlp_endpoint` under

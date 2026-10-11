@@ -133,5 +133,6 @@ max_tool_result_bytes      = 32768     # 32 KiB
 max_evidence_search_hits   = 6
 max_output_repairs         = 1
 max_transport_retries      = 1         # counts toward max_model_requests
+max_graph_nodes            = 50        # browser run graph (M5-T02); at most 50
 # eur_cap is intentionally absent: v0.1 has no cost reservation or verified pricing, so a hard
 # EUR cap cannot be claimed (plan section 3.8) and setting it fails validation on purpose.
