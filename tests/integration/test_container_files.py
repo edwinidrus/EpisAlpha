@@ -12,15 +12,24 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 def context_includes(relative: str) -> bool:
-    """Apply .dockerignore the way Docker does: the last matching pattern wins."""
+    """Match path segments and their parents; the last matching Docker pattern wins."""
     included = True
+    parts = relative.split("/")
     for raw in (REPO / ".dockerignore").read_text().splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
         negated = line.startswith("!")
         pattern = line.lstrip("!").rstrip("/")
-        if fnmatch(relative, pattern) or fnmatch(relative, pattern + "/*"):
+        # shortcut: rooted globs and leading **/ only; expand if the allowlist adds other syntax.
+        if pattern.startswith("**/"):
+            matches = any(fnmatch(part, pattern[3:]) for part in parts)
+        else:
+            patterns = pattern.split("/")
+            matches = len(parts) >= len(patterns) and all(
+                fnmatch(part, glob) for part, glob in zip(parts, patterns, strict=False)
+            )
+        if matches:
             included = negated
     return included
 
@@ -34,6 +43,8 @@ def test_secrets_data_and_history_never_enter_the_build_context() -> None:
         ".venv/bin/python",
         "config/demo.toml",
         "tests/conftest.py",
+        "tests/fixtures/connectors/sample.json",
+        "tests/integration/test_package.py",
         "src/episalpha/__pycache__/cli.cpython-312.pyc",
     ):
         assert not context_includes(path), path
@@ -54,6 +65,7 @@ def test_the_code_the_image_needs_is_in_the_build_context() -> None:
         "config/runtime.lock.json",
         "config/demo.example.toml",
         ".streamlit/config.toml",
+        "tests/fixtures/runtime/completion.json",
     ):
         assert context_includes(path), path
 
@@ -72,3 +84,6 @@ def test_dockerfile_pins_bases_and_has_runtime_and_dev_targets() -> None:
             assert line.split()[1] in ("base", "runtime"), line  # stages, not registries
     assert "ENTRYPOINT" not in text
     assert "app-entrypoint" not in text
+    assert "RUN uv sync --no-dev\n" in text
+    assert "RUN uv sync --all-groups\n" in text
+    assert "COPY tests/fixtures/runtime ./tests/fixtures/runtime" in text

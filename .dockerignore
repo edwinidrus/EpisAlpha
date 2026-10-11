@@ -1,5 +1,5 @@
 # Allowlist (A15): the app image gets exactly the code it runs. .env, .episalpha/, .git/, .venv/
-# and the tests never enter the build context.
+# and tests other than fake-runtime fixtures never enter the build context.
 *
 !pyproject.toml
 !uv.lock
@@ -14,5 +14,10 @@
 !config/
 config/demo.toml
 !.streamlit/
+!tests/
+tests/*
+!tests/fixtures/
+tests/fixtures/*
+!tests/fixtures/runtime/
 **/__pycache__
 **/*.pyc

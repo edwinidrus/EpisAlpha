@@ -32,11 +32,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 FROM base AS runtime
-# Dependencies first (cached layer), then the project itself, installed non-editable.
+# Dependencies first (cached layer), then an editable install so fixture paths resolve under /app.
 COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --no-dev --no-install-project
 COPY src ./src
-RUN uv sync --no-dev --no-editable
+RUN uv sync --no-dev
 COPY apps ./apps
 COPY harnesses ./harnesses
 COPY eval_cases ./eval_cases
@@ -45,6 +45,8 @@ COPY worker ./worker
 COPY container ./container
 COPY config ./config
 COPY .streamlit ./.streamlit
+# Fake-runtime fixtures are shipped as runtime data; the rest of tests/ stays out of the image.
+COPY tests/fixtures/runtime ./tests/fixtures/runtime
 # Mount points, writable by whichever uid compose runs as (EPISALPHA_UID). A named volume
 # mounted at /stages inherits this mode the first time it is created.
 RUN mkdir -p /app/.episalpha /stages && chmod 1777 /app/.episalpha /stages
@@ -53,6 +55,6 @@ CMD ["episalpha", "--help"]
 
 FROM runtime AS dev
 # The quality gate: pytest, ruff and mypy. compose.dev.yaml mounts the working copy over /app and
-# puts /app/src first on PYTHONPATH; UV_NO_SYNC keeps `uv run` on this venv.
-RUN uv sync --all-groups --no-editable
+# keeps the editable install; UV_NO_SYNC keeps `uv run` on this venv.
+RUN uv sync --all-groups
 ENV UV_NO_SYNC=1
