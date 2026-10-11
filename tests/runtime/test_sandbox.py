@@ -10,14 +10,18 @@ import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from episalpha.runtime.sandbox import (
+    COMPOSE_STAGE_ROOT,
     SandboxConfig,
     SandboxLauncher,
     forwarder_command,
     network_create_command,
+    preflight,
+    sandbox_config,
     worker_command,
 )
 
@@ -149,3 +153,108 @@ def test_timeout_stops_the_worker_and_removes_the_forwarder(tmp_path: Path) -> N
     assert outcome.timed_out
     assert outcome.stop_seconds is not None
     assert outcome.seconds < 10
+
+
+# --- the compose topology (A15) ---------------------------------------------------------------
+
+
+def compose() -> SandboxConfig:
+    return config(topology="compose")
+
+
+def test_topology_comes_from_the_environment() -> None:
+    assert sandbox_config(IMAGE, {}).topology == "host"
+    assert sandbox_config(IMAGE, {"EPISALPHA_SANDBOX_TOPOLOGY": "compose"}).topology == "compose"
+    with pytest.raises(ValueError, match="EPISALPHA_SANDBOX_TOPOLOGY"):
+        sandbox_config(IMAGE, {"EPISALPHA_SANDBOX_TOPOLOGY": "desktop"})
+
+
+def test_compose_forwarder_reaches_the_app_by_name_on_the_app_network() -> None:
+    argv = forwarder_command(compose(), "f1", 41234, 41235)
+    assert flag_value(argv, "--network") == ["episalpha-app"]
+    assert argv[-2:] == ["8080=net:41234", "8081=net:41235"]
+    assert "--read-only" in argv and flag_value(argv, "--cap-drop") == ["ALL"]
+
+
+def test_compose_worker_mounts_only_its_stage_sub_paths() -> None:
+    stage = COMPOSE_STAGE_ROOT / "run-0123456789ab" / "researching"
+    argv = worker_command(
+        compose(), "w1", stage / "spec.json", stage / "out", ["python", "-c", "pass"]
+    )
+    assert flag_value(argv, "--mount") == [
+        "type=volume,src=episalpha-stages,dst=/run/episalpha/spec.json,"
+        "volume-subpath=run-0123456789ab/researching/spec.json,readonly",
+        "type=volume,src=episalpha-stages,dst=/run/episalpha/out,"
+        "volume-subpath=run-0123456789ab/researching/out",
+    ]
+    joined = " ".join(argv)
+    assert "type=bind" not in joined and "docker.sock" not in joined
+    assert flag_value(argv, "--network") == ["episalpha-worker"]
+    assert flag_value(argv, "--dns") == ["127.0.0.1"]
+
+
+def test_compose_hardening_is_identical_to_host(tmp_path: Path) -> None:
+    stage = COMPOSE_STAGE_ROOT / "r" / "s"
+
+    def hardening(argv: list[str]) -> list[str]:
+        cut = argv.index("--mount")
+        return [a for a in argv[:cut] if a not in ("w1",)]
+
+    host = worker_command(config(), "w1", tmp_path / "spec.json", tmp_path / "out", ["x"])
+    other = worker_command(compose(), "w1", stage / "spec.json", stage / "out", ["x"])
+    assert hardening(host) == hardening(other)
+
+
+def test_compose_refuses_stage_paths_outside_the_volume(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        worker_command(compose(), "w1", tmp_path / "spec.json", tmp_path / "out", ["x"])
+
+
+def test_compose_refuses_volume_root_and_parent_traversal_mounts() -> None:
+    stage = COMPOSE_STAGE_ROOT / "run"
+    for path in (COMPOSE_STAGE_ROOT, stage / ".." / "x"):
+        for spec, out in ((path, stage / "out"), (stage / "spec.json", path)):
+            with pytest.raises(ValueError) as error:
+                worker_command(compose(), "w1", spec, out, ["x"])
+            assert str(path) in str(error.value)
+
+
+def test_compose_has_no_skills_mount_yet() -> None:
+    with pytest.raises(ValueError, match="skills"):
+        SandboxConfig(image=IMAGE, topology="compose", skills_dir=Path("/opt/skills"))
+
+
+def test_compose_binds_inside_the_namespace_and_keeps_forwarder_urls() -> None:
+    launcher = SandboxLauncher(compose())
+    assert launcher.bind_host == "0.0.0.0"
+    assert launcher.relay_url(41234) == "http://172.31.252.2:8080/v1"
+    assert compose().stage_root == COMPOSE_STAGE_ROOT
+    assert config().stage_root is None and config().bind_host == "172.17.0.1"
+
+
+def answers(**codes: tuple[int, str]) -> Any:
+    """A runner whose reply depends on the docker verb: version, volume, network."""
+
+    def run(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        code, out = codes.get(argv[1], (0, ""))
+        return subprocess.CompletedProcess(list(argv), code, out, "")
+
+    return run
+
+
+def test_preflight_passes_on_a_ready_compose_engine() -> None:
+    assert preflight(compose(), answers(version=(0, "1.52\n"))) is None
+    assert preflight(config(), answers(version=(1, ""))) is None  # host: never checked here
+
+
+def test_preflight_explains_each_missing_piece() -> None:
+    unreachable = preflight(compose(), answers(version=(1, "")))
+    assert unreachable is not None and "compose.live.yaml" in unreachable
+    old = preflight(compose(), answers(version=(0, "1.44")))
+    assert old is not None and "1.45" in old and "26" in old
+    garbled = preflight(compose(), answers(version=(0, "banana")))
+    assert garbled is not None and "banana" in garbled
+    no_volume = preflight(compose(), answers(version=(0, "1.52"), volume=(1, "")))
+    assert no_volume is not None and "episalpha-stages" in no_volume
+    no_network = preflight(compose(), answers(version=(0, "1.52"), network=(1, "")))
+    assert no_network is not None and "episalpha-app" in no_network

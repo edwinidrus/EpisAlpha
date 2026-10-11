@@ -281,3 +281,77 @@ def test_submit_and_cancel_emit_ui_spans(config: Path, launches: list[list[str]]
     run_id = launches[0][-1]
     assert by_name["ui.submit"][0]["attributes"]["episalpha.run_id"] == run_id
     assert by_name["ui.submit"][0]["attributes"]["episalpha.launched"] is True
+
+
+# --- M5-T02: evidence drilldown and run graph ---------------------------------------------------
+
+
+def test_evidence_tab_drills_from_assertion_to_passage_and_knowledge_tab_shows_relations(
+    config: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = finished_run(config, monkeypatch, "completion", "supported")
+    at = select(app(), run_id)
+    assert not at.exception, at.exception
+    codes = [str(item.value) for item in at.code]
+    assert "Fourth quarter revenue reached EUR 412.0 million. Ma" in codes  # first assertion
+    assert ":gray-badge[unreviewed]" in markdown(at)
+    assert "contradicted by:" in texts(at)  # A02: the critic's contradiction is visible
+    table = at.dataframe[-1].value
+    assert "CONTRADICTS" in set(table["label"]) and "recorded" in set(table["origin"])
+    assert all(
+        node.startswith(run_id) or not node.startswith("run-")
+        for node in (*table["source_id"], *table["target_id"])
+    )
+    assert len(at.get("graphviz_chart")) == 1
+
+
+def test_html_in_a_passage_is_rendered_as_inert_text(
+    config: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import fixtures.run_knowledge as fixtures_query  # SYNTHETIC RunKnowledge, HTML in a span
+
+    from episalpha.knowledge import query
+
+    run_id = finished_run(config, monkeypatch, "completion", "supported")
+    monkeypatch.setattr(query, "load_run", lambda *_: fixtures_query.knowledge())
+    at = select(app(), run_id)
+    at.selectbox(key=f"assertion-{fixtures_query.RUN}").set_value(f"{fixtures_query.RUN}.a2").run()
+    assert not at.exception, at.exception
+    assert fixtures_query.SCRIPT in [str(item.value) for item in at.code]
+    assert "<script>" not in markdown(at)
+    assert all(not getattr(item.proto, "allow_html", False) for item in at.markdown)
+    assert "Common lineage" in "\n".join(str(item.value) for item in at.warning)  # A21
+    assert "pct\\_change@1" not in markdown(at) and "pct_change@1 = " in texts(at)  # A8 chain
+
+
+def test_relation_table_survives_a_graph_failure(
+    config: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from episalpha.knowledge import query
+
+    def broken(graph: query.Graph) -> str:
+        raise RuntimeError("layout")
+
+    run_id = finished_run(config, monkeypatch, "completion", "supported")
+    monkeypatch.setattr(query, "to_dot", broken)
+    at = select(app(), run_id)
+    assert not at.exception, at.exception
+    assert "CONTRADICTS" in set(at.dataframe[-1].value["label"])
+    assert any("Graph layout failed" in str(item.value) for item in at.warning)
+
+
+def test_knowledge_tab_exports_the_run_to_the_vault(
+    config: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = finished_run(config, monkeypatch, "completion", "supported")
+    at = select(app(), run_id)
+    at.button(key=f"export-{run_id}").click().run()
+    assert not at.exception, at.exception
+    assert any("Exported" in str(item.value) for item in at.success)
+    vault = config.parent / "data" / "exports" / "vault"
+    assert (vault / "generated" / run_id / "manifest.json").is_file()
+    assert (vault / "annotations").is_dir()
+    before = {p: p.read_bytes() for p in (vault / "generated").rglob("*") if p.is_file()}
+    at.button(key=f"export-{run_id}").click().run()  # again: byte-identical, same folder
+    after = {p: p.read_bytes() for p in (vault / "generated").rglob("*") if p.is_file()}
+    assert after == before

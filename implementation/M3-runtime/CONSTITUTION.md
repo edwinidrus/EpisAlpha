@@ -37,6 +37,10 @@ Inherits [../CONSTITUTION.md](../CONSTITUTION.md). The articles below add to it 
      read-write.
    - It has no repository, no canonical SQLite, no labels, no Docker socket and no credentials.
    - Its network reaches the relay only.
+   - Both sandbox topologies keep this (A15): in `host` the forwarder reaches the relay and tool
+     server on the docker0 gateway and stage files are per-stage bind mounts; in `compose` it
+     reaches them by name on `episalpha-app` and stage files are `episalpha-stages` volume
+     sub-paths. In both, only the forwarder can reach the relay.
 9. **Upstream is pinned and quarantined.**
    - Hermes is pinned to `c1488ac` / 0.21.3 unless a re-probe records a new pin.
    - Untyped imports stay inside `runtime/hermes.py`.

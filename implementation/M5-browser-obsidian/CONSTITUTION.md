@@ -32,7 +32,7 @@ Inherits [../CONSTITUTION.md](../CONSTITUTION.md). The articles below add to it 
 7. **Filenames come from stable IDs only.** Titles and model text never become paths. Path
    traversal is impossible by construction.
 8. **Byte-stable export.** Exporting the same run unchanged produces identical bytes.
-9. **Localhost only.** Streamlit binds to `127.0.0.1` in v0.1.
+9. **Localhost only.** Streamlit is reachable from the host's loopback only in v0.1 (A15: inside the compose namespace it listens on all interfaces; the published port is `127.0.0.1` only).
 10. **UI actions are observable (A11, A14).** These emit spans. Evidence text never reaches
     `spans.jsonl`:
     - job submit (`ui.submit`), through the same admission service;

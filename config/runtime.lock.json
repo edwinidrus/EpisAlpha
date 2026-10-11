@@ -60,7 +60,7 @@
     },
     "worker_image": {
       "tag": "episalpha-worker:c1488ac",
-      "id": "sha256:6d1ed1ee5e6a18542d8ad64ac087930e5e5843a69a7a69d046485f45412854cd",
+      "id": "sha256:c75ad359ae99582f83f18e0473ee7f3b9e040ffa1e7afbf7097fc0b1b325484d",
       "built_at": "2026-10-11",
       "base": "python@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258 (python:3.12-slim-bookworm)",
       "hermes": "git archive of c1488ac947c9bc33fd65ec464548dc9d8edd6122, uv sync --frozen --no-dev --extra mcp (uv 0.11.6)",

@@ -6,22 +6,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 uv sync --all-groups                    # install (Python 3.12 + uv)
-uv run episalpha --version
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src/episalpha                # strict mode, owned code only
 uv run pytest -q -m "not live"           # default suite: offline, no credentials
-uv run pytest -q -m live tests/integration/test_hermes_probe.py   # opt-in live checks
-uv run pytest -q tests/contracts/test_settings.py::test_name      # single test
+uv run pytest -q tests/research/test_runner.py -k <expr>     # one file / one test
+uv run python scripts/diagnose.py        # end of every task; appends implementation/logs/diagnose.jsonl
+
+uv run episalpha demo seed               # synthetic demo corpus into .episalpha/
+uv run episalpha research run --case supported   # --runtime fake (default) => [FIXTURE] output
+uv run episalpha replay <run_id>
+uv run streamlit run apps/streamlit_app.py        # binds 127.0.0.1:8501
+
+set -a; source .env; set +a              # live only; every live call needs fresh owner approval
+uv run pytest -q -m live tests/integration/test_hermes_probe.py
 ```
 
-Docker (any Linux host; see `HANDOFF.md`): `docker compose build`, `docker compose run --rm check`
-(the four checks + diagnose), `docker compose up -d phoenix ui`, `docker compose run --rm cli ...`.
-Live Hermes runs add `-f compose.live.yaml` (Docker socket; owner approval per live run).
+CLI exit codes: 0 completed · 2 invalid request · 3 rejected · 4 failed/timed out ·
+5 abstained/partial · 6 cancelled.
+
+Docker (Linux, macOS, Windows; Engine >= 26, Compose >= 2.24; see `HANDOFF.md`): `docker compose build`,
+`docker compose up -d` (UI 127.0.0.1:8501, Phoenix :6006; override with EPISALPHA_UI_PORT /
+EPISALPHA_PHOENIX_PORT), `docker compose run --rm cli ...`, and the gate
+`docker compose -f compose.yaml -f compose.dev.yaml run --rm check` (four checks + diagnose).
+Live Hermes runs add `-f compose.live.yaml` (Docker socket; owner approval per live run). Run
+compose from the repo root; the stack uses relative mounts only (amendment A15).
 
 All four checks (`ruff check`, `ruff format --check`, `mypy`, `pytest -m "not live"`) run at every
 milestone gate. Tests requiring network, credentials, or a real model route must carry the `live`
-marker; the default suite must pass with no external network.
+marker; `tests/conftest.py` has an autouse guard that fails any non-loopback connect or DNS lookup
+in unmarked tests. Shared fixtures import as `fixtures.*` (`tests/fixtures/`).
 
 ## What this repository is
 
@@ -29,8 +43,7 @@ EpisAlpha is an evidence-grounded personal investment research workbench: a loca
 tool that produces a structured thesis where every material assertion traces to an exact source
 passage, and that can compare a baseline research procedure against a bounded offline challenger.
 
-**The code is a small skeleton; the design is fully specified in two documents.** Read them before
-building anything:
+The design is fully specified in two documents. Read the relevant sections before building:
 
 - `EpisAlpha_MVP_Milestone_Implementation_Plan.md` — **governs v0.1.** Frozen contracts,
   controlled vocabulary, temporal rules, repository layout, milestones M0–M7 with task cards
@@ -39,15 +52,14 @@ building anything:
   paper portfolio, evolution lab, evaluation science, trust zones). Do not load it by default;
   consult specific sections when the plan points there.
 
-Current state (2026-10-11): M0–M4 implemented (G0–G3 passed; G4 PARTIAL, M4-T04 blocked on the
-G2 owner checkpoint); M5-T01 (Streamlit research view) DONE. Next task: `M5-T02`. Start with
-`HANDOFF.md` (status, Docker setup, owner blockers). `implementation/STATUS.md` is the source of
-truth for task status; anything in plan
-§4.1 not present on disk is target structure, not existing code.
+Status and the next task: `implementation/STATUS.md` (source of truth). Setup, owner blockers and
+live-run notes: `HANDOFF.md` (`SESSION_HANDOFF.md` is superseded, kept for history). Anything in
+plan §4.1 not present on disk is target structure, not existing code.
 
 Research model route (amendment A9): OpenRouter `nvidia/nemotron-3-ultra-550b-a55b:free` via
-`ENV:openrouter_api_key`, **verified live by M0-T04 on 2026-10-10** (served by Nvidia, no fallbacks). The free tier allows 20 req/min and
-50 req/day (1,000 with ≥$10 lifetime credits). Budget live tests accordingly.
+`ENV:openrouter_api_key`, verified live by M0-T04 on 2026-10-10 (served by Nvidia, no fallbacks).
+The free tier allows 20 req/min and 50 req/day (1,000 with ≥$10 lifetime credits). Budget live
+tests accordingly.
 
 Learning (amendment A13): **learn offline, act frozen.** A run never changes the skills it uses
 (read-only, versioned, hash recorded); it may only `propose_skill` as data. Promotion goes
@@ -73,11 +85,12 @@ milestone gated by the preceding gate's checks actually passing. **Start every s
   `docs/implementation/progress.md` keeps only the cross-cutting owner inputs, findings and
   amendments.
 - **Diagnose layer (A11, A14):**
-  - Run `uv run python scripts/diagnose.py` at the end of each task (from M0-T05).
+  - Run `uv run python scripts/diagnose.py` at the end of each task.
   - Every boundary, AI or not, emits an OpenTelemetry span via
-    `episalpha.observability.span` (from M0-T06). One trace per research run.
-  - Spans go to `<data_root>/logs/spans.jsonl` (metadata only) and, when configured, to a
-    local Arize Phoenix on `127.0.0.1:6006` (full content; M0-T07).
+    `episalpha.observability.span`. One trace per research run (root `research.run`,
+    `session.id` = run ID).
+  - Spans go to `<data_root>/logs/spans.jsonl` (metadata only) and, when `otlp_endpoint` is set
+    under `[observability]`, to a local Arize Phoenix on `127.0.0.1:6006` (full content).
   - Secrets are redacted before any exporter.
   - Phoenix and the logs are diagnostic, never canonical. A Phoenix outage never fails a run.
 - Commits are an explicit owner action; the plan does not authorize automatic commits or pushes.
@@ -85,35 +98,59 @@ milestone gated by the preceding gate's checks actually passing. **Start every s
   live check are missing, a contract conflicts, or scope needs an unapproved architectural change.
   Escalate after two failed bounded attempts at the same issue.
 
-## Architecture (target)
+## Architecture
+
+One research run, top to bottom (`src/episalpha/` unless noted):
 
 ```text
-Browser (Streamlit) / CLI (Typer)
-  -> application services: jobs, idempotency, snapshots, state transitions, persistence
-  -> research runner
-       -> snapshot-bound typed tools
-       -> isolated Hermes worker subprocess
-       -> single-route model relay
-  -> deterministic validator
-  -> canonical records + run artifacts
-       -> evidence/relationship views, Obsidian export, offline evaluation reports
+cli.py (Typer) / apps/streamlit_app.py      thin shells; never run a model on the UI render path
+  -> research/services.py     admission, idempotency, the single job slot, run views
+  -> research/runner.py       8 stages: admit -> freeze snapshot -> researcher -> validate + map IDs
+                              -> critic -> synthesizer -> validation (<=1 bounded repair) -> persist
+       -> runtime/port.py     ResearchRuntimePort: one stage at a time
+            fake.py           replays tests/fixtures/runtime/*.json, every payload labelled fixture
+            hermes.py         host side; launches worker/hermes_stage.py in Hermes' own env
+              sandbox.py      worker container on an --internal network, reaching only:
+              model_relay.py    the sole holder of the provider key; one route, fails closed
+              mcp_server.py     snapshot-bound typed tools (tools.py) over MCP Streamable HTTP
+       -> runtime/candidates.py              parse each stage's submit_<stage> payload
+       -> research/validation.py, derivations.py   structural checks; recompute derived numbers (A8)
+       -> research/artifacts.py              <data_root>/runs/<run_id>/ canonical JSON + index.json
+evidence/    parsing (deterministic spans), temporal eligibility, frozen hashed snapshots
+connectors/  SEC EDGAR filings, XBRL company facts (point-in-time), Alpha Vantage prices
+storage/     sqlite3 + numbered SQL migrations, typed repository, content-addressed object store
 ```
 
-Directional rules that shape most code:
-
-- **Agents propose; deterministic systems dispose.** The Hermes worker returns *candidate* research;
-  the host validates, assigns canonical IDs, and only then passes records to later stages via
-  `RuntimeContext`. A model can never overwrite an existing canonical ID.
+- **Agents propose; deterministic systems dispose.** The runtime returns *candidate* research;
+  the runner validates, assigns canonical IDs (`<run_id>.<key>`), refuses any ID that already
+  exists, and only then passes records to later stages via `RuntimeContext`.
 - **The input snapshot is immutable.** Newly generated claims/hypotheses live in a separate
   current-run record set and may cite only eligible source spans or already-validated current-run
   records. Final artifacts keep both the manifest and the generated records.
-- **Exporters are never canonical.** Obsidian/Markdown output is derived, one-way.
-- **Connectors never infer conclusions**; the evaluator never executes candidate code; validation
-  labels live outside any agent-accessible path.
-- Isolate untyped upstream (Hermes) imports inside `runtime/hermes.py`; never globally relax typing
-  to accommodate an upstream package.
+- **Hermes never enters the application venv.** It exact-pins its dependencies, so only
+  `worker/hermes_stage.py` (stdlib + Hermes, run with Hermes' interpreter) imports it. The pin
+  (Hermes 0.21.3, commit and worker image ID) is in `config/runtime.lock.json`;
+  `scripts/setup_worker.py` rebuilds it. Never globally relax typing for an upstream package.
+- Connectors take an injected `Transport` callable, so tests feed `tests/fixtures/connectors/`
+  instead of the network. **Connectors never infer conclusions**; exporters (Obsidian/Markdown)
+  are derived and never canonical; the evaluator never executes candidate code; validation labels
+  live outside any agent-accessible path.
 - Storage is stdlib `sqlite3` with WAL, foreign keys, busy timeout, short transactions — no ORM.
   v0.1 allows one active research job.
+- Stage prompts live in `harnesses/baseline/`; demo and evaluation cases in `eval_cases/`
+  (case → company mapping is PROVISIONAL until the G2 owner checkpoint).
+
+## Configuration and data
+
+- `config/demo.toml` (copy of `config/demo.example.toml`) is loaded into one validated `Settings`
+  object (`settings.py`). Unknown keys are rejected at every level. Relative `project_root`
+  resolves from the config file's own directory and `data_root` under it — never from the CWD.
+- All limits and budgets (plan §3.8) live in `Settings.limits`; no scattered constants.
+- Credentials appear only as `ENV:<name>` references, resolved lazily (a missing key returns
+  `None`, so offline work never fails). Values live in the git-ignored `.env`; never print them —
+  read names only (`cut -d= -f1 .env`).
+- `.episalpha/` (git-ignored data root): `app.sqlite3`, `objects/`, `runs/<run_id>/`,
+  `logs/spans.jsonl`, `phoenix/`, `vendor/` (Hermes clone and venv).
 
 ## Non-negotiable domain rules
 
@@ -135,16 +172,18 @@ A claim created today from old evidence keeps today's `created_at`. Historical r
 Valid schema plus a clean citation does **not** make a claim `supported` — only a recorded
 `SemanticAssessment` does, and assessments are versioned, never overwritten. Every user-visible
 material statement goes through `ThesisAssertion` with claim/hypothesis references; never add a
-free-text summary field that bypasses them.
+free-text summary field that bypasses them. Numbers are reported (cited span) or recomputed by a
+registered derivation — the model never supplies a computed value (A8). An `unverified` source
+cannot be the sole support for an assertion (A2).
 
 **Honest failure states:** `ABSTAINED` (essential evidence missing) ≠ `REJECTED` (unrepairable
 invalid references) ≠ `PARTIAL` ≠ `FAILED`/`TIMED_OUT`. A provider outage is never translated into
-a valid abstention, and partial work is preserved when a run fails.
+a valid abstention, `SOURCE_FAILED` is not `NO_DATA`, and partial work is preserved when a run
+fails. Unknown usage/cost stays unknown (`None`), never estimated.
 
 **Conventions:** application-generated filesystem-safe IDs (user titles and model text are never
 paths); timezone-aware UTC timestamps with explicit offsets; money and financial measurements as
-decimal strings plus units, never raw floats. Budgets and limits (plan §3.8) live in one validated
-settings object, not scattered constants.
+decimal strings plus units, never raw floats.
 
 ## Verification integrity
 
@@ -154,6 +193,7 @@ settings object, not scattered constants.
 - Do not invent upstream Hermes API arguments, commit IDs, model capabilities, or evaluation
   results — pin and record what was actually inspected.
 - Human-owned evidence annotations and evaluation labels are not repair targets.
-- Dependency policy is deliberately minimal (Pydantic, Typer, HTTPX, Streamlit; pytest/Ruff/mypy for
-  dev). Add a dependency only when a specific task requires it. Coding-model choice and research-model
-  choice are independent; never hard-code a product dependency on a model brand name.
+- Dependency policy is deliberately minimal: Pydantic, Typer, Streamlit, OpenTelemetry (HTTPX is
+  permitted by the plan but not used yet); pytest/Ruff/mypy for dev. Add a dependency only when a
+  specific task requires it. Coding-model choice and research-model choice are independent; no
+  model names in code — the research route lives only in `config/*.toml`.

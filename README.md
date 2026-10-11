@@ -2,20 +2,25 @@
 
 Evidence-grounded personal investment research workbench.
 
-Status (2026-10-11): milestones M0–M4 are implemented and M5-T01 (the Streamlit research
-view) is done. That covers contracts, evidence storage and snapshots, the isolated Hermes
-runtime, the research runner, the CLI with replay and recovery, and the browser view. Task
+Status (2026-10-11): milestones M0–M4 are implemented, and M5-T01 to M5-T03 are done. That
+covers contracts, evidence storage and snapshots, the isolated Hermes runtime, the research
+runner, the CLI with replay and recovery, the browser workbench (research view, evidence
+drilldown, relation table and graph), and a one-way Obsidian export. Task
 status lives in `implementation/STATUS.md`; to set up a new machine, start with `HANDOFF.md`.
 
 ## Docker (recommended)
 
 ```bash
-export EPISALPHA_UID=$(id -u) EPISALPHA_GID=$(id -g)
 docker compose build
-docker compose run --rm check                 # ruff, format, mypy, pytest (offline) + diagnose
-docker compose up -d phoenix ui               # http://127.0.0.1:6006 and http://127.0.0.1:8501
+docker compose up -d                            # UI http://127.0.0.1:8501, Phoenix :6006
 docker compose run --rm cli research run --case supported
+docker compose run --rm cli export obsidian --run <run_id>   # vault: .episalpha/exports/vault
+docker compose -f compose.yaml -f compose.dev.yaml run --rm check   # expect diagnose: PASS
 ```
+
+Designed to work the same on Linux, macOS and Windows (Docker Engine >= 26); verified on Linux,
+macOS/Windows owner checks pending.
+See `HANDOFF.md` §3 for config, credentials, Linux uid/gid and the first dev-image build.
 
 ## Development
 

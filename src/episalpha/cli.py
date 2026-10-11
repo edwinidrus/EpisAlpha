@@ -15,13 +15,14 @@ from typing import Annotated
 import typer
 
 from episalpha import __version__
-from episalpha.contracts.errors import EpisAlphaError
+from episalpha.contracts.errors import EpisAlphaError, ErrorCode
 from episalpha.contracts.research import (
     RETROSPECTIVE_NOTICE,
     ResearchMode,
     RunRecord,
     RuntimeMode,
 )
+from episalpha.knowledge.export_obsidian import export_run
 from episalpha.observability import SpanKind, configure_tracing, shutdown_tracing, span, trace_url
 from episalpha.research import services
 from episalpha.research.artifacts import RunArtifacts
@@ -40,7 +41,9 @@ app = typer.Typer(
 demo_app = typer.Typer(add_completion=False, no_args_is_help=True, help="Demo corpus.")
 research_app = typer.Typer(add_completion=False, no_args_is_help=True, help="Research runs.")
 app.add_typer(demo_app, name="demo")
+export_app = typer.Typer(add_completion=False, no_args_is_help=True, help="Derived exports.")
 app.add_typer(research_app, name="research")
+app.add_typer(export_app, name="export")
 
 
 def _now() -> datetime:
@@ -270,6 +273,47 @@ def replay(context: typer.Context, run_id: str) -> None:
             typer.echo(f"missing: {item}")
     typer.echo(f"snapshot: {view.manifest['snapshot_id']} {view.manifest['snapshot_hash']}")
     typer.echo(f"trace: {view.index.get('trace_id', '')}")
+    workbench.close()
+    shutdown_tracing()
+
+
+@export_app.command("obsidian")
+def export_obsidian(
+    context: typer.Context,
+    run: Annotated[str, typer.Option("--run", help="The finished run to export.")],
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", help="Vault directory (default: <data_root>/exports/vault)."),
+    ] = None,
+) -> None:
+    """Write a one-way, byte-stable Obsidian vault for one finished run.
+
+    Notes go to generated/<run_id>/; annotations/ is never written. If the owner edited a
+    generated note, the export moves to generated/<run_id>.<n>/ and leaves the edits untouched.
+    Exit 0 on success; 2 for an unknown or unfinished run; 4 on an artifact integrity error.
+    """
+    workbench = _workbench(context)
+    vault = output or workbench.data_root / "exports" / "vault"
+    record = workbench.repo.get_run(run)
+    try:
+        result = export_run(workbench.repo, workbench.runs_dir, run, vault)
+    except EpisAlphaError as error:
+        workbench.close()
+        _fail(str(error), 4 if error.code is ErrorCode.INTEGRITY_ERROR else 2)
+        return
+    except OSError as error:
+        workbench.close()
+        _fail(f"cannot write the vault at {vault}: {error.strerror or type(error).__name__}")
+        return
+    if record is not None and record.request.runtime_mode is RuntimeMode.FAKE:
+        typer.echo("[FIXTURE] fake runtime: scripted fixture output, not research")
+    relative = result.destination.relative_to(vault.resolve()).as_posix()
+    typer.echo(f"exported: {run} -> {relative} ({result.files} files)")
+    typer.echo(f"vault: {vault.resolve()}")
+    typer.echo(f"manifest: {result.manifest_hash}")
+    typer.echo(f"conflicts: {len(result.conflicts)}")
+    for name in result.conflicts:
+        typer.echo(f"edited, left untouched: generated/{name}")
     workbench.close()
     shutdown_tracing()
 

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | TODO |
+| Status | DONE |
 | Depends on | M5-T01 |
 | Phase constitution | [../CONSTITUTION.md](../CONSTITUTION.md) (inherits [global](../../CONSTITUTION.md)) |
 | Plan source | plan §11 M5-T02 card, §3.4; A8; acceptance rows A02, A14, A21 |

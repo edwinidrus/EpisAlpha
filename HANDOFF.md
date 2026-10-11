@@ -1,6 +1,8 @@
 # EpisAlpha handoff
 
-**Date:** 2026-10-11 · **Stopped after:** M5-T01 (DONE) · **Next task:** M5-T02 · **Branch:** `main`
+**Date:** 2026-10-11 · **Stopped after:** M5-T03 + A15 (M0-T08, M3-T05) · **Next task:** M5-T04 · **Branch:** `a15-portable-docker` (not merged; see `docs/implementation/handover-2026-10-11.md`)
+
+> **Latest session handover:** `docs/implementation/handover-2026-10-11.md` — what was done on 2026-10-11, what is not done or not verified, owner actions, open reviews and every decision taken on the owner's behalf.
 
 This file is for whoever continues EpisAlpha on another machine, human or coding agent. It
 covers four things: where the build stands, how to bring it up anywhere with Docker, what is
@@ -17,7 +19,7 @@ kept for history).
 | 2 | `implementation/README.md` | Session protocol: one task per session; Plan → Verify → Build → Test → Diagnose. |
 | 3 | `implementation/STATUS.md` | Source of truth for task status and the next-task pointer. |
 | 4 | `implementation/CONSTITUTION.md` + the phase `CONSTITUTION.md` | Binding rules. A phase constitution can only add rules. |
-| 5 | The next task pack: `implementation/M5-browser-obsidian/tasks/M5-T02-evidence-graph.md` | The work. |
+| 5 | The next task pack: `implementation/M5-browser-obsidian/tasks/M5-T04-walkthrough.md` | The work. |
 | 6 | Plan `EpisAlpha_MVP_Milestone_Implementation_Plan.md` | Only at the sections a pack cites. Never load the blueprint by default. |
 
 Each phase folder has a `REPORT.md` (M0–M4) with what was built, verified, found and left open.
@@ -33,14 +35,14 @@ Each phase folder has a `REPORT.md` (M0–M4) with what was built, verified, fou
 | M2 Evidence | G2 **PASSED** | SQLite + object store, snapshots, point-in-time XBRL, traced connectors. The owner checkpoint (live ingestion + hand inspection) is still open. |
 | M3 Runtime | G3 **PASSED** | Pinned Hermes 0.21.3 (`c1488ac`) over MCP; model relay with stage policy; hardened worker container. Live runs proven (traces `279e56da…` local, `f8c7b412…` container). |
 | M4 Research CLI | G4 **PARTIAL** | Runner, CLI, replay, recovery done. **M4-T04 BLOCKED**: real-case reviews need the G2 checkpoint. The owner chose to continue anyway. |
-| M5 Browser + Obsidian | — | **M5-T01 DONE** (Streamlit research view). T02 evidence graph, T03 Obsidian export, T04 owner walkthrough: TODO. |
+| M5 Browser + Obsidian | — | **M5-T01–T03 DONE** (research view, evidence drilldown + graph, Obsidian export). T04 owner walkthrough: TODO. |
 | M6 Evaluation | — | Not started. |
 | M7 Acceptance | — | Not started. |
 | M8 Learning (post-v0.1) | — | Not started. Depends on G7. |
 
 **Last verified (2026-10-11):**
 - Host: four checks green, `570 passed, 8 deselected`.
-- Inside the Docker app image (`docker compose run --rm check`): `diagnose: PASS | tests
+- Inside the Docker app image (`docker compose -f compose.yaml -f compose.dev.yaml run --rm check`): `diagnose: PASS | tests
   {'passed': 570, 'failed': 0, ...} | failures 0 | regressions 0 | orphans 0 | 69.1s`.
 
 **Live model budget.** About 28 of the 40 requests the owner approved for the overnight session
@@ -51,40 +53,38 @@ approval.** The free tier allows 20 requests/min and 50/day (1,000/day with ≥$
 
 ## 3. Bring it up on a new machine (Docker)
 
-### Requirements
-- Linux with **Docker Engine** and Compose **≥ 2.24** (WSL2 with the engine installed works),
-  plus git.
-- Nothing else. Python, uv and the Docker CLI live in the app image.
-- Docker Desktop on macOS or Windows runs the offline stack, but live Hermes runs need host
-  networking and a `docker0` gateway (section 4).
-
-### Steps
+Prerequisites: Docker Engine >= 26 with Compose >= 2.24 (Docker Desktop on macOS or Windows, or
+Docker Engine on Linux). Then, from the repository root:
 
 ```bash
-git clone https://github.com/edwinidrus/EpisAlpha.git && cd EpisAlpha
-
-# 1. Credentials: .env is git-ignored and never committed. These variable NAMES are what
-#    config/demo.toml references (ENV:...); put the values in yourself.
-cat > .env <<'EOF'
-openrouter_api_key=
-alpha_vantage_api_key=
-EOF
-chmod 600 .env
-
-# 2. Your ids, so files written into the repository stay yours.
-export EPISALPHA_UID=$(id -u) EPISALPHA_GID=$(id -g)
-
-# 3. Build, then run the quality gate in the container. The first start syncs the venv from
-#    uv.lock into a named volume (about 2 minutes); later starts are instant.
+cp config/demo.example.toml config/demo.toml   # Windows PowerShell: Copy-Item
+# put the credentials into .env (names only are listed in config/demo.toml)
 docker compose build
-docker compose run --rm check          # four checks + diagnose; expect 570 passed
-
-# 4. Use it.
-docker compose up -d phoenix ui         # Phoenix http://127.0.0.1:6006, workbench http://127.0.0.1:8501
+docker compose up -d                            # UI http://127.0.0.1:8501, Phoenix :6006
 docker compose run --rm cli demo seed
-docker compose run --rm cli research run --case supported      # a [FIXTURE] fake run
+docker compose run --rm cli research run --case supported     # a [FIXTURE] fake run
 docker compose run --rm cli replay <run_id>
+docker compose run --rm cli export obsidian --run <run_id>     # vault: .episalpha/exports/vault
+docker compose -f compose.yaml -f compose.dev.yaml run --rm check   # expect diagnose: PASS
 ```
+
+On Linux, if your uid/gid are not 1000, set EPISALPHA_UID and EPISALPHA_GID (for example in
+your shell, or in a `.env` next to compose.yaml) so files in .episalpha stay yours.
+
+Before the first dev `check`, build its image with
+`docker compose -f compose.yaml -f compose.dev.yaml build`; expect `diagnose: PASS`, not a
+fixed test count, because compose tests skip inside the container (no compose plugin).
+
+The one-shot `init` service creates `./.episalpha`, `./.episalpha/phoenix` and
+`./.episalpha/exports` and chowns just those directories, non-recursively, to
+`EPISALPHA_UID:EPISALPHA_GID` before anything starts, because rootful Docker creates missing
+bind sources as root. It runs as root with only CHOWN/DAC_OVERRIDE/FOWNER capabilities and no network.
+
+Host ports are overridable: `EPISALPHA_UI_PORT` (default 8501) and `EPISALPHA_PHOENIX_PORT`
+(default 6006); for example, set `EPISALPHA_PHOENIX_PORT=6007` if another project uses 6006.
+Known limit: the workbench's "Open trace in Phoenix" link is derived from `otlp_endpoint` and still points at :6006.
+
+Restart the stack with `docker compose up -d` (or `restart` all services); restarting `net` alone leaves ui and phoenix in a dead network namespace.
 
 **Phoenix traces.** To send traces to Phoenix, uncomment `otlp_endpoint` under
 `[observability]` in `config/demo.toml`. Without it, spans still go to
@@ -94,22 +94,20 @@ docker compose run --rm cli replay <run_id>
 
 | File | Role |
 |---|---|
-| `Dockerfile` | App toolbox image: pinned `python:3.12-slim` (same digest as the worker), git, the Docker CLI (from a pinned `docker:29.1.3-cli`), `uv 0.11.6`. Its build context is only `container/app-entrypoint.sh` (see `.dockerignore`), so `.env` and the data can never enter the image. |
-| `container/app-entrypoint.sh` | Runs `uv sync --frozen --all-groups` into `/opt/venv` (a named volume), then the command. |
-| `compose.yaml` | `ui` (Streamlit), plus tools-profile services `cli`, `check` and `setup-worker`. Phoenix comes in through `include: observability/compose.yaml`. No Docker socket. |
+| `Dockerfile` | Multi-stage runtime/dev app image: digest-pinned Python and Docker CLI, uv, dependencies in `/opt/venv`, project installed editable at `/app/src`. Code is baked in; only `tests/fixtures/runtime/` ships from tests, as the fake runtime's data. `.dockerignore` allowlists the build context, excluding credentials, local data and the rest of the test suite. |
+| `compose.yaml` | `init` prepares data directories; `net` owns the shared namespace and loopback-only host ports; `ui`, Phoenix and tools-profile `cli`/`setup-worker` use it. Relative data/config binds and named `episalpha-stages` volume; no Docker socket. |
+| `compose.dev.yaml` | Dev image and working-copy mount at `/app`; defines the networkless offline `check` service. |
 | `compose.live.yaml` | An overlay that adds the host's Docker socket to `ui`, `cli` and `setup-worker`, for live runs and the worker build only. |
 | `scripts/setup_worker.py` | Clones Hermes at the pin, then builds the worker image with the M3-T04 recipe. `--record` writes the new image ID to the lock; `--local-venv` builds the local-launcher venv. |
 
 Three design choices to keep:
-- **The repository is mounted at the same absolute path inside the container as on the host.**
-  The sandboxed worker's bind mounts are resolved by the host's Docker daemon, so the paths must
-  agree. Always run `docker compose` from the repository root.
-- **`network_mode: host`.** Every binding stays exactly as on the host:
-  - Streamlit on `127.0.0.1:8501` (M5 article 9);
-  - Phoenix at `127.0.0.1:6006` (the settings accept a loopback endpoint only);
-  - the relay and the tool server on the `docker0` gateway for the worker.
-- **Dependencies change → rebuild nothing.** The entrypoint re-syncs from `uv.lock` at every
-  start. Rebuild the image only when the `Dockerfile` changes.
+- **Relative mounts, fixed container root `/app`.** Run compose from the repository root;
+  host and container paths no longer need to match.
+- **Shared localhost, loopback-only host exposure.** Only `net` publishes UI/Phoenix ports;
+  Phoenix is still `127.0.0.1:6006` inside the shared namespace, so the loopback-only
+  `otlp_endpoint` rule is unchanged even if the host port is overridden.
+- **Local build only.** Rebuild when code or dependencies change; no startup dependency sync,
+  registry distribution or CI publishing. The dev override runs the working copy instead.
 
 ### Without Docker (host, as before)
 
@@ -142,37 +140,38 @@ tar xzf episalpha-data.tgz                                            # new mach
 
 Each step needs the owner. Each live run spends model requests.
 
-```bash
-export DOCKER_GID=$(stat -c %g /var/run/docker.sock)
-LIVE="docker compose -f compose.yaml -f compose.live.yaml"
+**Run `setup-worker` once per machine (and `--record`). This machine has no
+`episalpha-worker` image yet.** The app build does not build the Hermes worker; the lock
+(`config/runtime.lock.json` → `hermes.worker_image.id`) contains another machine's image ID.
+Builds are not bit-for-bit reproducible: record the locally built ID, review the lock diff,
+then re-run the G3 live checks before trusting it.
 
-$LIVE run --rm setup-worker                                   # clone Hermes c1488ac, build the worker
-$LIVE run --rm setup-worker python scripts/setup_worker.py --record   # on a new machine (see below)
-$LIVE up -d ui
-$LIVE run --rm cli research run --case supported --runtime hermes      # needs ingested filings, see 5.1
-```
+After pulling code changes, rebuild with `docker compose build` — the runtime image bakes the code (the live attempt A failed on a stale image).
+`research recover <run_id>` releases a run stranded in QUEUED after a crash.
 
-**Expect a new worker image ID.** Docker builds are not bit-for-bit reproducible.
-- The lock (`config/runtime.lock.json` → `hermes.worker_image.id`) holds the ID built on the old
-  machine.
-- On this machine, the rebuild inside the container matched the lock
-  (`sha256:6d1ed1ee…54cd`), but only because the build cache was warm.
-- A fresh machine will print `differs from the lock`. Run it again with `--record`, review the
-  lock diff, and re-run the G3 live checks before trusting it:
+Set `DOCKER_GID` to the socket group on Linux (`export DOCKER_GID=$(stat -c %g
+/var/run/docker.sock)`), or to `0` on Docker Desktop (owner check still outstanding).
 
 ```bash
-$LIVE run --rm setup-worker python scripts/setup_worker.py --local-venv   # local-launcher tests
-$LIVE run --rm --entrypoint episalpha-entrypoint cli \
-    pytest -q -m live tests/integration/test_runtime_boundary.py tests/integration/test_hermes_runtime.py
+docker compose -f compose.yaml -f compose.live.yaml run --rm setup-worker   # once per machine
+docker compose -f compose.yaml -f compose.live.yaml run --rm setup-worker python scripts/setup_worker.py --record
+docker compose -f compose.yaml -f compose.live.yaml up -d
+docker compose -f compose.yaml -f compose.live.yaml run --rm cli \
+    research run --case supported --runtime hermes   # needs ingested filings, see 5.1
 ```
 
-**Verified and not verified.** From inside the app container, these steps are verified:
-- socket access (`client 29.1.3 server 29.1.3`);
-- the worker build;
-- a fresh clone at the pin.
-
-**A live research run from inside the container has not been executed yet.** The G3 live
-evidence comes from host-side runs.
+**Verified and not verified.** M3-T05 is DONE on Linux; G3 passed its A15 re-run.
+The host's four standard checks expect `632 passed, 8 deselected` (83 files formatted;
+mypy: 38 source files); Docker dev checks can have a different count, as noted in §3.
+Both topology isolation probes passed: only `relay_via_forwarder` allowed. The compose
+live run exercised the worker, relay and tool server: two stages completed, synthesizer
+failed provider-side (`SOURCE_FAILED`), 7 model requests / 4 tool calls, served_by Nvidia
+on the six successful calls, no leftover workers/forwarders. No completed live thesis in
+compose yet. The supported case abstained because real filings are not ingested (G2).
+The new trace was JSONL only (`otlp_endpoint` unset; host Phoenix port 6007), not a new
+Phoenix verification. macOS Apple Silicon and Windows Docker Desktop build → check → up
+→ fake run → live run, `DOCKER_GID=0` socket access and the arm64 Hermes build remain
+owner checks, not claimed passes.
 
 **Security notes:**
 - The socket overlay gives the app containers control of the Docker daemon, which is
@@ -208,7 +207,7 @@ evidence comes from host-side runs.
   - a `PROGRESS.md` row with real command output;
   - the `STATUS.md` row.
 
-  Then run `uv run python scripts/diagnose.py` (in Docker: `docker compose run --rm check`).
+  Then run `uv run python scripts/diagnose.py` (in Docker: `docker compose -f compose.yaml -f compose.dev.yaml run --rm check`; expect `diagnose: PASS`).
 - **Red first.** Never weaken a test, skip a failure, or regenerate an expected answer.
 - **Fixtures stay fixtures.** `FakeRuntime` output is always labelled `[FIXTURE]` and never
   counts as a live pass. A blocked live gate stays blocked.
