@@ -1,0 +1,8 @@
+# A Windows clone with core.autocrlf=true must still build and run the Linux containers (A15).
+Dockerfile text eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.toml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.md text eol=lf

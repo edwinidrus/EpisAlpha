@@ -1,3 +1,18 @@
-# The app image needs one file. Everything else, above all .env and .episalpha/, stays out.
+# Allowlist (A15): the app image gets exactly the code it runs. .env, .episalpha/, .git/, .venv/
+# and the tests never enter the build context.
 *
-!container/app-entrypoint.sh
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+!apps/
+!harnesses/
+!eval_cases/
+!scripts/
+!worker/
+!container/
+!config/
+config/demo.toml
+!.streamlit/
+**/__pycache__
+**/*.pyc
