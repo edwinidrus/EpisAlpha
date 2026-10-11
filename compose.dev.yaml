@@ -1,0 +1,38 @@
+# Development override (A15): run the working copy instead of the baked-in code.
+#
+#   docker compose -f compose.yaml -f compose.dev.yaml build
+#   docker compose -f compose.yaml -f compose.dev.yaml run --rm check   # four checks + diagnose
+#   docker compose -f compose.yaml -f compose.dev.yaml up -d ui         # UI on your working copy
+x-dev: &dev
+  image: episalpha-app:dev
+  build: { context: ., target: dev }
+  environment:
+    PYTHONPATH: /app/src          # the working copy wins over the venv's installed package
+    GIT_CONFIG_COUNT: "1"         # diagnose reads git; bind-mounted repos may look foreign
+    GIT_CONFIG_KEY_0: safe.directory
+    GIT_CONFIG_VALUE_0: /app
+
+services:
+  ui:
+    <<: *dev
+    volumes:
+      - .:/app
+  cli:
+    <<: *dev
+    volumes:
+      - .:/app
+  check:
+    <<: *dev
+    user: "${EPISALPHA_UID:-1000}:${EPISALPHA_GID:-1000}"
+    profiles: [tools]
+    working_dir: /app
+    network_mode: none            # the default suite is offline by contract
+    volumes:
+      - .:/app
+    environment:
+      PYTHONPATH: /app/src
+      HOME: /tmp
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: /app
+    command: ["python", "scripts/diagnose.py"]

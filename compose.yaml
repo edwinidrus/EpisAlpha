@@ -1,62 +1,115 @@
-# EpisAlpha orchestrated with Docker: the same commands on any Linux host with Docker Engine
-# (and WSL2). Run every command from the repository root. Full guide: HANDOFF.md.
+# EpisAlpha with Docker, the same commands on Linux, macOS and Windows (amendment A15).
+# Run from the repository root. Needs Docker Engine >= 26 and Compose >= 2.24. Guide: HANDOFF.md.
 #
-#   docker compose build                                      # the app image
-#   docker compose up -d phoenix ui                           # Phoenix :6006, workbench :8501
-#   docker compose run --rm cli demo seed                     # the CLI
-#   docker compose run --rm cli research run --case supported # a fake (fixture) run
-#   docker compose run --rm check                             # quality gate: four checks + diagnose
+#   docker compose build                                       # the app image
+#   docker compose up -d                                       # UI 127.0.0.1:8501, Phoenix :6006
+#   docker compose run --rm cli demo seed                      # the CLI
+#   docker compose run --rm cli research run --case supported  # a fake (fixture) run
+#   docker compose -f compose.yaml -f compose.dev.yaml run --rm check   # four checks + diagnose
 #
-# Live Hermes runs and the worker build need the host's Docker socket: compose.live.yaml.
+# Live Hermes runs and the worker build add compose.live.yaml (the Docker socket).
 name: episalpha
 
-include:
-  - observability/compose.yaml   # phoenix, bound to 127.0.0.1:6006
-
 x-app: &app
-  build: .
   image: episalpha-app:local
-  # Your uid/gid, so files written into the repository stay yours.
+  build: { context: ., target: runtime }
+  # Your uid/gid on Linux, so files written into ./.episalpha stay yours.
   user: "${EPISALPHA_UID:-1000}:${EPISALPHA_GID:-1000}"
-  # Host networking keeps every binding exactly as on the host: Streamlit on 127.0.0.1:8501,
-  # Phoenix reached at 127.0.0.1:6006 (the settings accept a loopback endpoint only), and the
-  # relay and tool server on the docker0 gateway for the sandboxed worker.
-  network_mode: host
-  # Same path inside as outside: the worker's bind mounts are resolved by the host daemon.
-  working_dir: ${PWD}
+  # One shared namespace with the anchor and Phoenix: Phoenix is 127.0.0.1:6006 for the app,
+  # exactly as on a host, so the loopback-only otlp_endpoint rule holds unchanged.
+  network_mode: service:net
+  depends_on:
+    init:
+      condition: service_completed_successfully
+    net:
+      condition: service_started
+  working_dir: /app
   volumes:
-    - ${PWD}:${PWD}
-    - venv:/opt/venv
-    - uv-cache:/opt/uv-cache
+    - ./.episalpha:/app/.episalpha
+    - ./config:/app/config:ro
+    - stages:/stages            # live-run stage files; the worker mounts only its own sub-path
   env_file:
-    - path: .env          # git-ignored; holds the ENV: credentials named in config/demo.toml
+    - path: .env                # git-ignored; the ENV: credentials named in config/demo.toml
       required: false
   environment:
     EPISALPHA_CONFIG: config/demo.toml
+    EPISALPHA_SANDBOX_TOPOLOGY: compose
     HOME: /tmp
 
 services:
+  # Rootful engines create missing bind sources as root; only create/chown /data,
+  # /data/phoenix and /data/exports, never existing data files (non-recursive).
+  init:
+    image: episalpha-app:local
+    build: { context: ., target: runtime }
+    user: "0:0"
+    network_mode: none
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - ./.episalpha:/data
+    entrypoint: ["sh", "-c"]
+    command:
+      - mkdir -p /data/phoenix /data/exports && chown "${EPISALPHA_UID:-1000}:${EPISALPHA_GID:-1000}" /data /data/phoenix /data/exports
+    restart: "no"
+
+  # The network anchor: owns the namespace and the only published ports (loopback only).
+  net:
+    image: episalpha-app:local
+    build: { context: ., target: runtime }
+    init: true
+    command: ["python", "-c", "import signal; signal.pause()"]
+    user: "${EPISALPHA_UID:-1000}:${EPISALPHA_GID:-1000}"
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    networks: [app]
+    ports:
+      - "127.0.0.1:${EPISALPHA_UI_PORT:-8501}:8501"      # workbench
+      - "127.0.0.1:${EPISALPHA_PHOENIX_PORT:-6006}:6006" # Phoenix UI + OTLP/HTTP
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
   ui:
     <<: *app
-    command: ["streamlit", "run", "apps/streamlit_app.py"]
+    # Inside the namespace Streamlit must listen on all interfaces: Docker delivers the published
+    # port to the anchor's address, not to its 127.0.0.1. The host side is 127.0.0.1 only.
+    command: ["streamlit", "run", "apps/streamlit_app.py", "--server.address", "0.0.0.0"]
     restart: unless-stopped
 
   cli:
     <<: *app
     profiles: [tools]
-    entrypoint: ["episalpha-entrypoint", "episalpha"]
+    entrypoint: ["episalpha"]
     command: ["--help"]
-
-  check:
-    <<: *app
-    profiles: [tools]
-    command: ["python", "scripts/diagnose.py"]
 
   setup-worker:
     <<: *app
     profiles: [tools]
     command: ["python", "scripts/setup_worker.py"]
+    volumes:
+      - ./.episalpha:/app/.episalpha
+      - ./config:/app/config      # writable: --record updates config/runtime.lock.json
+      - stages:/stages
+
+  phoenix:
+    extends: { file: observability/compose.yaml, service: phoenix }
+    network_mode: service:net
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      net:
+        condition: service_started
+    ports: !reset []
+    networks: !reset []
 
 volumes:
-  venv:
-  uv-cache:
+  stages:
+    name: episalpha-stages
+
+networks:
+  app:
+    name: episalpha-app

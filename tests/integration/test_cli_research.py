@@ -251,3 +251,10 @@ def test_a_hermes_run_that_cannot_start_is_refused_before_admission(
     assert refused.exit_code == 2
     assert "not exported" in refused.output
     assert cli(config, "research", "run", "--case", "supported").exit_code == 0
+
+
+def test_a_missing_settings_file_is_a_clean_refusal(tmp_path: Path) -> None:
+    result = CliRunner().invoke(app, ["--config", str(tmp_path / "absent.toml"), "demo", "seed"])
+    assert result.exit_code == 2
+    assert "settings file" in result.output and "not found" in result.output
+    assert "Traceback" not in result.output
