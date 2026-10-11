@@ -11,17 +11,21 @@ fixtures with no network and no credentials.
 
 from __future__ import annotations
 
+import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Self
 
+from opentelemetry.trace import Span
 from pydantic import Field, model_validator
 
 from episalpha.contracts.errors import EpisAlphaError, ErrorCode
 from episalpha.contracts.knowledge import Contract, DecimalString, Identifier, UtcTimestamp
+from episalpha.observability import SpanKind, span
 
 DAILY_FUNCTION = "TIME_SERIES_DAILY"
 ADJUSTED_FUNCTION = "TIME_SERIES_DAILY_ADJUSTED"
@@ -111,6 +115,33 @@ Transport = Callable[[dict[str, str]], str]
 """Takes query parameters, returns the raw response body. Injected so tests stay offline."""
 
 
+@contextmanager
+def fetch_span(source_id: str, operation: str, host: str | None) -> Iterator[Span]:
+    """One ``connector.fetch`` span per external call (M2 constitution article 10).
+
+    Metadata only: source, operation, host, outcome, size and hash. Never the body, the query
+    string, the full URL or a key; payloads are canonical in the object store, by hash.
+    """
+    attributes = {
+        "episalpha.source_id": source_id,
+        "episalpha.operation": operation,
+        "server.address": host,
+    }
+    with span("connector.fetch", SpanKind.CHAIN, **attributes) as current:
+        try:
+            yield current
+        except SourceError as error:
+            current.set_attribute("episalpha.outcome", error.code.value)
+            raise
+        current.set_attribute("episalpha.outcome", "ok")
+
+
+def record_payload(current: Span, body: bytes | str) -> None:
+    data = body.encode("utf-8") if isinstance(body, str) else body
+    current.set_attribute("episalpha.bytes", len(data))
+    current.set_attribute("episalpha.payload_hash", hashlib.sha256(data).hexdigest())
+
+
 class AlphaVantagePrices:
     """Daily price connector.
 
@@ -119,6 +150,7 @@ class AlphaVantagePrices:
     """
 
     source_id = "alpha_vantage"
+    host = "www.alphavantage.co"
 
     def __init__(
         self,
@@ -148,16 +180,17 @@ class AlphaVantagePrices:
         if self.api_key:
             parameters["apikey"] = self.api_key
 
-        try:
-            body = self.transport(parameters)
-        except SourceError:
-            raise
-        except Exception as error:  # transport-level failure is never an absence of data
-            raise SourceError(
-                ErrorCode.SOURCE_FAILED, f"{self.source_id} transport failed: {error}"
-            ) from error
-
-        return self._parse(instrument_id, symbol, body)
+        with fetch_span(self.source_id, "daily", self.host) as current:
+            try:
+                body = self.transport(parameters)
+            except SourceError:
+                raise
+            except Exception as error:  # transport-level failure is never an absence of data
+                raise SourceError(
+                    ErrorCode.SOURCE_FAILED, f"{self.source_id} transport failed: {error}"
+                ) from error
+            record_payload(current, body)
+            return self._parse(instrument_id, symbol, body)
 
     def _parse(self, instrument_id: str, symbol: str, body: str) -> PriceSeries:
         try:

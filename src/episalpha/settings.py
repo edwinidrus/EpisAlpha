@@ -14,6 +14,7 @@ from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any, Self
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator, model_validator
 
@@ -25,6 +26,8 @@ _ENV_PREFIX = "ENV:"
 _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{1,63}$")
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9_]{0,31}$")
 _COMPANY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
+
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
 DEMO_COMPANY_COUNT = 3
 """Plan section 1.4 fixes the demo corpus at exactly three companies."""
@@ -277,6 +280,14 @@ class Limits(_Base):
     max_evidence_search_hits: int = Field(default=6, ge=1, le=50)
     max_output_repairs: int = Field(default=1, ge=0, le=3)
     max_transport_retries: int = Field(default=1, ge=0, le=3)
+    max_researcher_requests: int = Field(default=4, ge=1, le=32)
+    max_critic_requests: int = Field(default=2, ge=1, le=32)
+    max_synthesizer_requests: int = Field(default=1, ge=1, le=32)
+    """Per-stage request caps (M3-T03). Each stage's last request forces its submit tool.
+    They only shape the run; ``max_model_requests`` stays the hard, run-global cap."""
+    max_skill_proposals: int = Field(default=2, ge=0, le=8)
+    """``propose_skill`` calls allowed per run (amendment A13)."""
+    max_skill_proposal_bytes: int = Field(default=4096, ge=256, le=65_536)
     eur_cap: DecimalString | None = None
 
     @model_validator(mode="after")
@@ -307,6 +318,35 @@ class Limits(_Base):
         return self
 
 
+class ObservabilityConfig(_Base):
+    """Tracing (amendments A11, A14). Spans are diagnostic, never canonical.
+
+    Spans always go to ``<data_root>/logs/spans.jsonl`` (metadata only). ``otlp_endpoint``
+    additionally sends them, with full content, to a local Arize Phoenix. It must be a
+    loopback address: content never leaves this machine (global constitution article 29).
+    """
+
+    otlp_endpoint: str | None = None
+    capture_content: bool = True
+    service_name: str = "episalpha"
+    project_name: str = "episalpha"
+    sample_ratio: float = Field(default=1.0, ge=0.0, le=1.0)
+    export_timeout_seconds: int = Field(default=5, ge=1, le=60)
+
+    @field_validator("otlp_endpoint")
+    @classmethod
+    def _loopback_only(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        parts = urlsplit(value)
+        if parts.scheme not in ("http", "https") or parts.hostname not in _LOOPBACK_HOSTS:
+            raise ValueError(
+                f"{value!r} must be an http(s) loopback URL such as "
+                '"http://127.0.0.1:6006/v1/traces": span content may only go to a local Phoenix'
+            )
+        return value
+
+
 class Settings(_Base):
     """The whole validated configuration."""
 
@@ -315,6 +355,7 @@ class Settings(_Base):
     demo: DemoSelection = DemoSelection()
     sources: SourcesConfig = SourcesConfig()
     limits: Limits = Limits()
+    observability: ObservabilityConfig = ObservabilityConfig()
 
     @property
     def unresolved_owner_inputs(self) -> tuple[str, ...]:

@@ -23,7 +23,8 @@ uv run python scripts/diagnose.py
 - [ ] Manual check: the owner reaches the original passage from an assertion in 3 deliberate
       clicks or fewer.
 - [ ] Manual check: Obsidian opens the vault and the local links work.
-- [ ] UI and export actions are visible in `episalpha.jsonl`.
+- [ ] UI and export actions are visible as spans (`ui.*`, `export.obsidian`), with Phoenix trace
+      links on runs.
 
 ## Results log (append-only; real output only)
 

@@ -98,26 +98,75 @@ Sources: `CLAUDE.md`, and plan §§1–4 (`EpisAlpha_MVP_Milestone_Implementatio
     - Never print, log, commit or paste a secret value, including in journals, `PROGRESS.md`,
       test fixtures and error messages.
 
-## VII. Observability: the Diagnose layer (A11)
+## VII. Observability: the Diagnose layer (A11, A14)
 
-27. **Observable by default.** Every I/O or trust boundary emits one structured event through
-    `episalpha.observability.event` (from M0-T06). The boundaries are:
-    - connector request and refusal;
-    - model call;
-    - tool call;
-    - stage transition;
-    - repair;
-    - validation;
-    - snapshot build.
-28. **Logs are diagnostic, never canonical.**
+27. **Observable by default, whole system.**
+    - Every I/O or trust boundary emits one **OpenTelemetry span** through
+      `episalpha.observability` (from M0-T06). That covers AI and non-AI boundaries alike.
+    - A research run is **one trace**: root span `research.run`, `session.id` = `run_id`.
+    - CLI commands, UI actions, ingestion, export, replay and recovery, M6 campaigns and M8 skill
+      evaluations each get their own traces. Evaluation trials link to their run traces.
+    - Event names used in the task packs map to spans as follows:
+
+      | Pack event name | Span name | OpenInference kind |
+      |---|---|---|
+      | `connector.request/response/refused` | `connector.fetch` (outcome as attribute) | `CHAIN` |
+      | `snapshot.built` | `snapshot.freeze` | `CHAIN` |
+      | `stage.transition` | `stage.<name>` (span start and end) | `AGENT` |
+      | `model.call` | `model.call` | `LLM` |
+      | `tool.call` | `tool.<name>` (`search_evidence` is `RETRIEVER`) | `TOOL` |
+      | `validation.completed` | `validation`, with one span event per check | `EVALUATOR` |
+      | `repair.attempt` | `repair.attempt` | `CHAIN` |
+      | `run.terminal` | the end of `research.run` (status and reason as attributes) | `CHAIN` |
+      | `export.completed` | `export.obsidian` | `CHAIN` |
+      | `eval.trial` / `eval.decision` | `eval.trial` / `eval.decision` | `EVALUATOR` |
+      | `skill.*` | `skill.<action>` | `CHAIN` (`skill.evaluated` is `EVALUATOR`) |
+
+28. **Diagnostics are never canonical.**
     - Canonical state lives in SQLite and the content-addressed object store.
-    - No logic reads logs to decide anything.
-    - Log hashes, sizes, IDs, counts and durations, not payload bodies.
-29. **Redaction is mandatory.** The redaction filter strips every resolved credential value
-    before a record is written.
+    - No application logic reads logs or Phoenix to decide anything.
+    - A Phoenix outage or export failure never fails a run. Spans still go to the JSONL
+      fallback.
+29. **Content policy (owner decision, 2026-10-10).**
+    - The **local Phoenix exporter** receives full content: prompts, completions, tool inputs
+      and outputs, validation details.
+    - The **JSONL fallback** (`<data_root>/logs/spans.jsonl`) receives metadata only: names,
+      timings, IDs, hashes, sizes, counts, status.
+    - A `RedactionSpanProcessor` strips every resolved credential value **before any exporter**.
+    - Phoenix binds to `127.0.0.1` only. It is unreachable from the worker container, keeps
+      data for a bounded retention period, and is never exported to third parties.
 30. **Every task leaves evidence.** Each task ends with three things:
     - a `diagnose.py` run showing no regression;
     - a journal entry;
     - a `PROGRESS.md` row with real command output.
 
-    A delivery that cannot be explained from these three is not done.
+    From M0-T06 on, the task's expected spans must also be visible.
+
+    A delivery that cannot be explained from this evidence is not done.
+
+## VIII. Learning (A13): learn offline, act frozen
+
+31. **Runs never change the skills they use.**
+    - During a run, the research model works with a frozen, read-only, versioned skill set.
+    - The skill-set hash is part of the harness hash, so every run stays reproducible.
+32. **The only path to a new skill is gated.** The steps, in order:
+    1. propose (`propose_skill`, recorded as data);
+    2. deterministic screening;
+    3. offline paired evaluation (no regression, plus a targeted gain);
+    4. **human approval**, showing diff, provenance and evaluation report;
+    5. read-only use in later runs.
+
+    Nothing is auto-promoted.
+33. **Every skill is provenance-linked and revocable.**
+    - Each skill records the runs, trajectories and evidence spans it came from.
+    - Revoking a source revokes every skill derived from it.
+    - Self-generated skills can carry poisoned instructions that slip past an LLM judge
+      (SkillJack, 2026).
+34. **Skills are procedural, never factual.**
+    - No tickers, dated facts, numbers with units or URLs.
+    - Historical runs use only skills promoted at or before their research cutoff (§II; plan §3.5
+      rule 9).
+35. **Hermes' native learning stays off.** That means memory, user profile, session search,
+    background review, curator and Skills Hub. These write state with no provenance and spend
+    requests no one budgeted.
+

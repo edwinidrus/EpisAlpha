@@ -26,13 +26,16 @@ Inherits [../CONSTITUTION.md](../CONSTITUTION.md). The articles below add to it 
    - No provider key appears in output.
    - Fake runs are labelled visibly.
    - Exit codes distinguish success, rejected, failed and incomplete.
-9. **Orchestration emits the pure modules' events (A11).** The runner emits these on behalf of
-   the pure modules, which stay pure:
-   - `snapshot.built`, with the snapshot hash and counts;
-   - `validation.completed`, with disposition, failed-check count and unresolved reviews;
-   - `repair.attempt`;
-   - `run.terminal`, with state, reason and usage totals.
-
-   All are bound with `run_id`, `stage` and `attempt`.
+9. **Orchestration emits the pure modules' spans (A11, A14).**
+   - The runner owns the run's trace: root span `research.run` (`CHAIN`), with
+     `session.id` = `run_id`.
+   - It emits these on behalf of the pure modules, which stay pure:
+     - `snapshot.freeze`, with the snapshot hash and counts;
+     - `stage.<name>` (`AGENT`);
+     - `validation` (`EVALUATOR`), with one span event per check, the disposition, the
+       failed-check count and unresolved reviews;
+     - `repair.attempt`.
+   - The terminal state, reason and usage totals are set as attributes on `research.run`.
+   - The trace ID is stored with the run's artifacts, so any run opens in Phoenix.
 10. **Quality failures are feedback, not permission.** A poor real thesis is recorded and
     attributed. Validators are never weakened to pass a review.

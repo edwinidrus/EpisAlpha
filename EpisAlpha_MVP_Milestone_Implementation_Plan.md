@@ -1,7 +1,7 @@
 # EpisAlpha MVP — Milestone Implementation Plan
 
-**Version:** 1.3  
-**Prepared:** 20 September 2026 · **Amended:** 20 September 2026 after gates G0/G1; 10 October 2026 (A8–A11)  
+**Version:** 1.5  
+**Prepared:** 20 September 2026 · **Amended:** 20 September 2026 after gates G0/G1; 10 October 2026 (A8–A14)  
 **Status:** M0, M1 and M2 implemented and gated. Amendments below record verified facts and owner decisions; everything else remains as issued.  
 **Audience:** Solo builder and coding agents, including GPT-5.6 Terra / GLM-5.3-class models.  
 **Architecture approach:** Lightweight arc42-style constraints and quality scenarios, organized around executable delivery milestones.  
@@ -15,7 +15,7 @@ Passing the gates establishes tested behavior, not perfect model accuracy, prove
 
 ---
 
-## 0. Amendment record (v1.1–v1.3)
+## 0. Amendment record (v1.1–v1.5)
 
 Every change below replaces an assumption with something observed, or records an owner decision.
 Sections not listed are unchanged. Evidence: `docs/implementation/hermes_probe.md`,
@@ -34,6 +34,9 @@ Sections not listed are unchanged. Evidence: `docs/implementation/hermes_probe.m
 | A9 | 1.2, M0-T04 (new), M3-T02 | **Research route moves to OpenRouter** `nvidia/nemotron-3-ultra-550b-a55b:free` (`https://openrouter.ai/api/v1`, `ENV:openrouter_api_key`). **Unverified until the M0-T04 live probe**; Ollama `glm-5.3` stays in the lock file as history. Free tier: 20 req/min; 50 req/day (1,000 with ≥$10 lifetime credits) — at most 6 runs/day at 8 requests/run; the M6 campaign needs credits or a multi-day schedule. `:free` data-logging policy unconfirmed | Owner decision 2026-10-10 |
 | A10 | 17, all task cards | **Execution layer moves to `implementation/`**: per-phase CONSTITUTION/PLAN/PROGRESS/GATE and self-contained task packs (Plan → Verify → Build → Test → Diagnose). This plan stays the source of contracts (§§1–4) and the acceptance matrix (§14); task status lives in `implementation/STATUS.md` | Owner request: one focused context per coding session |
 | A11 | M0-T05, M0-T06, M2-T06 (new); M3+ cards | **Diagnose layer.** Implementation level: `scripts/diagnose.py` (checks, tests per directory, docs↔disk traceability, regression vs history) plus an append-only journal per task. Operational level: `src/episalpha/observability.py` (stdlib JSON-lines events, `contextvars` correlation, credential redaction); every boundary emits events; logs are diagnostic, never canonical. Acceptance rows A25 (wrong derived number) and A26 (secret in any log) added in `implementation/M7-acceptance/PLAN.md` | Owner request: white-box visibility of what works and what does not |
+| A12 | M3 (constitution 12–14, M3-T01..T04), M4-T01, acceptance A27–A29 | **Runtime hardening.** The relay forwards an allowlist of body fields (rejects OpenRouter `plugins`/`:online`/`models`/`provider`/`openrouter:web_search`); worker image pinned by digest, non-root, `cap_drop: ALL`, read-only rootfs, pids/memory limits, external DNS blocked; worker output read without following symlinks; rootless Docker or userns-remap recommended (host is rootful Docker 29.1.3 in WSL); Hermes native memory/background review/curator/Skills Hub off at runtime | Owner security review 2026-10-10; CVE-2024-29018 (DNS from internal networks); Hermes docs: Docker mode skips its dangerous-command checks |
+| A13 | Global constitution §VIII, M3/M4 hooks, new milestone M8 (`implementation/M8-learning/`), acceptance A30–A31 | **Safe continuous learning.** Learn offline, act frozen: runs use a read-only versioned skill set (hash in the harness hash) and may only `propose_skill` as data; host screens deterministically, evaluates offline (paired, no regression + targeted gain), **owner approves every promotion**; provenance-linked cascade revocation; historical runs use skills promoted ≤ cutoff. M8 follows G7 | Owner wants the non-frontier model to improve over time; procedural skills help weaker models most, but self-generated skills can degrade quality and can be poisoned (SkillsBench; SkillJack, arXiv 2608.03509) |
+| A14 | Global constitution §VII, M0-T06 (rewritten), M0-T07 (new), M2-T06, M3/M4/M5/M6 span wording, M8-T05 (new), acceptance A32 | **Whole-system Diagnose service.** OpenTelemetry tracing for every boundary — runner, connectors, tools, relay, validator, sandbox, CLI/UI, evaluation, learning — one trace per research run (OpenInference span kinds). Exporters: JSONL fallback (metadata only, always on) and a **local Arize Phoenix** (`127.0.0.1:6006`, OTLP/HTTP, SQLite volume, telemetry off, pinned digest; full content per owner decision; secrets redacted before any exporter). Phoenix is never canonical; an outage never fails a run. M8-T05 turns traces and owner annotations into a deterministic failure-cluster report that grounds M8/M6 improvements; annotations are never evaluation labels. New deps: `opentelemetry-api`, `-sdk`, `-exporter-otlp-proto-http` | Owner request 2026-10-10: capture the whole system, not only the model, as grounding for improvement. Phoenix: Elastic License 2.0, single container, OTel-native; Langfuse self-host needs Postgres+ClickHouse+Redis+S3 |
 
 ---
 
@@ -69,7 +72,7 @@ The first audience is the owner, using a local Linux/WSL environment. No public 
 | User surface | Streamlit browser application |
 | Automation surface | Thin Typer CLI sharing application services |
 | Core language | Python 3.12 (**verified**: Hermes `requires-python >=3.11,<3.14`) |
-| Research model route | **Amended (A9), re-probe pending (M0-T04):** OpenRouter `nvidia/nemotron-3-ultra-550b-a55b:free`, `https://openrouter.ai/api/v1`, `ENV:openrouter_api_key`. Previously **resolved and verified**: Ollama, model `glm-5.3`, `https://ollama.com/v1`, credential `ENV:ollama_api_key`. The id is `glm-5.3` on the cloud endpoint and `glm-5.3:cloud` via the local daemon; the pairing is not interchangeable |
+| Research model route | **Amended (A9), verified 2026-10-10 by M0-T04 (live probe; forced `tool_choice` honoured, served by Nvidia, no fallbacks):** OpenRouter `nvidia/nemotron-3-ultra-550b-a55b:free`, `https://openrouter.ai/api/v1`, `ENV:openrouter_api_key`. Previously **resolved and verified**: Ollama, model `glm-5.3`, `https://ollama.com/v1`, credential `ENV:ollama_api_key`. The id is `glm-5.3` on the cloud endpoint and `glm-5.3:cloud` via the local daemon; the pairing is not interchangeable |
 | Domain validation | Pydantic v2 |
 | Canonical storage | SQLite; migrations; foreign keys; explicit transactions |
 | Original evidence | Content-addressed local files, outside agent write access |

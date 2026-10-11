@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | TODO |
+| Status | DONE |
 | Depends on | G3 |
 | Phase constitution | [../CONSTITUTION.md](../CONSTITUTION.md) (inherits [global](../../CONSTITUTION.md)) |
 | Plan source | plan §10 M4-T01 card, §3.6 (stages, state machine, background execution), §3.7 |
@@ -57,6 +57,11 @@ Load these and nothing else:
   - It also keeps the **pre-repair candidate payload** of each stage. M6-T01's numeric-correctness
     metric (A8) compares the model-proposed numbers *before* repair against the recomputed
     values, so the pre-repair numbers must survive.
+  - Worker output is read under M3 constitution article 14 (A12): regular files only, no
+    symlinks, size caps, schema validation.
+  - Persist the run's `propose_skill` proposals as artifacts, with `run_id`, stage and cited
+    span IDs, so the M8 loop can harvest them with provenance. Record the **skill-set hash**
+    on the run.
 - **ID mapping:**
   - Candidate-local IDs are mapped host-side to new canonical IDs.
   - A candidate attempting to reuse an existing canonical ID is rejected.
@@ -71,12 +76,13 @@ Load these and nothing else:
   | Unrepairable invalid output | `REJECTED` |
   | Did real work but not all of it | `PARTIAL` |
 
-- **Events (A11), all inside `bind(run_id=..., stage=..., attempt=...)`:**
-  - `snapshot.built`
-  - `stage.transition`, on each change
-  - `validation.completed`
-  - `repair.attempt`
-  - `run.terminal`
+- **Spans (A11, A14), one trace per run, inside `bind_run(run_id)`:**
+  - root `research.run` (`CHAIN`), which carries the terminal state, reason and usage totals
+    as attributes;
+  - children: `snapshot.freeze`, `stage.<name>` (`AGENT`), `validation` (`EVALUATOR`, with one
+    span event per check), `repair.attempt`, `sandbox.run`, `run.persist`;
+  - model and tool spans from the relay and tools (M3) nest under the active stage span;
+  - the trace ID is persisted in the run's artifact index.
 - **Out of scope:**
   - CLI (M4-T02).
   - Replay and recovery (M4-T03).

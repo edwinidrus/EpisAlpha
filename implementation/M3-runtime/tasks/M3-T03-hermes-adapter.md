@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Status | TODO |
-| Depends on | M3-T02 |
+| Status | DONE |
+| Depends on | M3-T02b |
 | Phase constitution | [../CONSTITUTION.md](../CONSTITUTION.md) (inherits [global](../../CONSTITUTION.md)) |
 | Plan source | plan §9 M3-T03 card, §3.6 stages 3–7; A5 |
 | Journal | `tasks/M3-T03-hermes-adapter.journal.md` |
@@ -52,6 +52,15 @@ Controls verified on `run_agent.AIAgent` at `c1488ac`:
     `model` = the route `model_id`, `enabled_toolsets=['episalpha']` and `skip_memory=True`.
     Session IDs are unique per stage.
   - Disable delegation, shell, browser, file access and unrelated plugins.
+  - **Learning lockdown (A12/A13, M3 constitution article 12).**
+    - Write the per-run Hermes config with these settings:
+      - `memory.memory_enabled: false` and `memory.user_profile_enabled: false`;
+      - `auxiliary.background_review.enabled: false`;
+      - `curator.enabled: false`;
+      - `skills.write_approval: true`.
+    - `HERMES_HOME` is a per-run tmpfs.
+    - Promoted skills are mounted read-only at the skills path. It is empty in v0.1.
+    - Compute the skill-set hash, and fold it into the harness hash.
   - **Assert that the effective tool list equals the allowlist** before the first turn.
   - Final output arrives through a forced `submit_<stage>` tool whose arguments are the
     candidate JSON. It is parsed host-side. A malformed payload gives
@@ -72,6 +81,14 @@ Controls verified on `run_agent.AIAgent` at `c1488ac`:
 
 ## 2. Verify (before building)
 
+- [ ] **The learning keys exist at the pin.** The facts above come from the current Hermes docs
+      (2026-10-10), not from `c1488ac` / 0.21.3. Grep the pinned source for
+      `memory_enabled`, `user_profile_enabled`, `background_review`, `curator`,
+      `write_approval` and `skill_manage`.
+      - Journal each one as found, missing or renamed.
+      - Confirm that Hermes loads skills from a read-only directory without erroring.
+      - **If background review cannot be disabled at the pin, report BLOCKED.** It would spend
+        hidden requests and write skills.
 - [ ] Re-confirm the pinned commit and the controls exist: `python -c` introspection inside the
       Hermes environment. Journal the result.
 - [ ] The M3-T01 MCP proof is recorded as passing, and the M3-T02 relay is green.
@@ -113,14 +130,20 @@ Acceptance:
 - [ ] Malformed output is returned as an error, not quietly accepted.
 - [ ] The effective tool list is verified against the allowlist, and recorded.
 - [ ] mypy strict is still clean. Hermes typing gaps are confined to `runtime/hermes.py`.
+- [ ] After the live run:
+      - nothing was written under `HERMES_HOME`'s `skills/`, `memories/` or `state.db`;
+      - the relay request count equals the stage requests (no hidden background-review
+        calls);
+      - the skill-set hash is recorded (the empty-set hash in v0.1).
 
 ## 5. Diagnose
 
 - [ ] `diagnose.py`: no regression.
 - [ ] The journal has, for the live run: the effective tools, `served_by`, the harness hash,
       requests and tokens per stage, and the stage durations.
-- [ ] Event check: three `stage.transition`, N `model.call` and M `tool.call` events, with no
-      prompt text in the logs.
+- [ ] Span check: one trace holds three `stage.*` (`AGENT`) spans, N `model.call` (`LLM`)
+      spans and M `tool.*` spans. Prompts are visible in the local Phoenix only. `spans.jsonl`
+      holds hashes only. Record the trace ID in the journal.
 
 ## 6. Stop and hand off
 

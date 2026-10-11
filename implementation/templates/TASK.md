@@ -61,8 +61,9 @@ Acceptance (tick each, with evidence):
 
 - [ ] `uv run python scripts/diagnose.py` passes, with no regression against the previous
       `implementation/logs/diagnose.jsonl` line.
-- [ ] Expected events appear in `<data_root>/logs/episalpha.jsonl` (from M0-T06 onward):
-      <event names>.
+- [ ] The expected spans appear (from M0-T06 onward): span names and kinds in
+      `<data_root>/logs/spans.jsonl`, and in the local Phoenix if it is running (M0-T07).
+      <span names>.
 - [ ] A journal entry is written, with every attempt recorded.
 
 ## 6. Stop and hand off

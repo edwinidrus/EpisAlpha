@@ -25,7 +25,7 @@ from urllib.parse import urlparse
 
 from pydantic import Field
 
-from episalpha.connectors.prices import SourceError, Transport
+from episalpha.connectors.prices import SourceError, Transport, fetch_span, record_payload
 from episalpha.contracts.errors import ErrorCode
 from episalpha.contracts.knowledge import (
     AvailabilityBasis,
@@ -141,22 +141,25 @@ class SecEdgarFilings:
 
     def fetch(self, url: str) -> bytes:
         """Fetch one allowlisted SEC URL. Requires an explicitly configured transport."""
-        check_allowed(url)
-        if self.transport is None or self.agent is None:
-            raise SourceError(
-                ErrorCode.NOT_AUTHORIZED,
-                "network fetching is not configured; supply a transport and a User-Agent "
-                "carrying contact details, per SEC fair access",
-            )
-        try:
-            body = self.transport({"url": url, "User-Agent": self.agent})
-        except SourceError:
-            raise
-        except Exception as error:
-            raise SourceError(
-                ErrorCode.SOURCE_FAILED, f"{self.source_id} transport failed: {error}"
-            ) from error
-        return body.encode("utf-8") if isinstance(body, str) else body
+        with fetch_span(self.source_id, "fetch", urlparse(url).hostname) as current:
+            check_allowed(url)
+            if self.transport is None or self.agent is None:
+                raise SourceError(
+                    ErrorCode.NOT_AUTHORIZED,
+                    "network fetching is not configured; supply a transport and a User-Agent "
+                    "carrying contact details, per SEC fair access",
+                )
+            try:
+                body = self.transport({"url": url, "User-Agent": self.agent})
+            except SourceError:
+                raise
+            except Exception as error:
+                raise SourceError(
+                    ErrorCode.SOURCE_FAILED, f"{self.source_id} transport failed: {error}"
+                ) from error
+            payload = body.encode("utf-8") if isinstance(body, str) else body
+            record_payload(current, payload)
+            return payload
 
     def parse_submissions(self, body: str, *, forms: tuple[str, ...] = ()) -> list[FilingMetadata]:
         """Read EDGAR's submissions JSON into filing metadata.

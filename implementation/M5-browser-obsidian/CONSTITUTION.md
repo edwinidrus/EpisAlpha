@@ -33,9 +33,11 @@ Inherits [../CONSTITUTION.md](../CONSTITUTION.md). The articles below add to it 
    traversal is impossible by construction.
 8. **Byte-stable export.** Exporting the same run unchanged produces identical bytes.
 9. **Localhost only.** Streamlit binds to `127.0.0.1` in v0.1.
-10. **UI actions are observable (A11).** These emit events, and no evidence text appears in
-    logs:
-    - job submit, through the same admission service and its events;
-    - cancel;
-    - export, as `export.completed`, with `run_id`, file count, manifest hash and conflict
-      count. Add it to `EventName` in the task that needs it.
+10. **UI actions are observable (A11, A14).** These emit spans. Evidence text never reaches
+    `spans.jsonl`:
+    - job submit (`ui.submit`), through the same admission service;
+    - cancel (`ui.cancel`);
+    - export (`export.obsidian`), with `run_id`, file count, manifest hash and conflict
+      count.
+
+    All are OpenTelemetry spans (global article 27).

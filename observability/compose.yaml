@@ -1,0 +1,48 @@
+# Local Arize Phoenix: the Diagnose service (amendment A14, task M0-T07).
+#
+#   docker compose -f observability/compose.yaml up -d     # UI: http://127.0.0.1:6006
+#
+# Runbook: docs/implementation/phoenix.md. Phoenix is diagnostic, never canonical: EpisAlpha
+# runs fully without it (spans still go to <data_root>/logs/spans.jsonl).
+#
+# Every setting below was checked against the pinned image's own phoenix/config.py (2026-10-10).
+name: episalpha-observability
+
+services:
+  phoenix:
+    # arizephoenix/phoenix:version-20.20.0-nonroot, pinned by digest. Upgrade = new digest,
+    # after a backup (see the runbook).
+    image: arizephoenix/phoenix@sha256:2ac6874a4f743a626060adb6988b6dbd558530a0e06685334f63f8a779aaabb5
+    # Runs as the invoking host user (non-root), so the bind-mounted data directory stays
+    # owned by you. Override with EPISALPHA_UID / EPISALPHA_GID if your ids are not 1000.
+    user: "${EPISALPHA_UID:-1000}:${EPISALPHA_GID:-1000}"
+    ports:
+      - "127.0.0.1:6006:6006"   # UI + OTLP/HTTP /v1/traces, loopback only; gRPC 4317 not published
+    environment:
+      PHOENIX_PORT: "6006"
+      PHOENIX_HOST: "0.0.0.0"   # inside the container; the host side is bound to 127.0.0.1 above
+      PHOENIX_WORKING_DIR: /data
+      PHOENIX_SQL_DATABASE_URL: sqlite:////data/phoenix.db
+      PHOENIX_TELEMETRY_ENABLED: "false"
+      PHOENIX_ALLOW_EXTERNAL_RESOURCES: "false"   # no self-initiated public-internet requests
+      PHOENIX_DEFAULT_RETENTION_POLICY_DAYS: "90"
+      HOME: /tmp
+      # Auth (PHOENIX_ENABLE_AUTH, PHOENIX_SECRET) is OFF: enabling it requires every OTLP client
+      # to send an API key. Access control is the loopback binding. See the runbook.
+    volumes:
+      - ../.episalpha/phoenix:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    pids_limit: 256
+    restart: unless-stopped
+    networks: [phoenix]
+
+networks:
+  # Phoenix's own network. It is never attached to the research worker's network (M3).
+  phoenix:
+    name: episalpha-phoenix

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | TODO |
+| Status | DONE |
 | Depends on | M4-T01 |
 | Phase constitution | [../CONSTITUTION.md](../CONSTITUTION.md) (inherits [global](../../CONSTITUTION.md)) |
 | Plan source | plan §10 M4-T02 card (exact interface) |
@@ -16,7 +16,7 @@ Load these and nothing else:
 - `src/episalpha/cli.py` (the existing Typer app with `--version`)
 - `src/episalpha/research/runner.py` (M4-T01)
 - `src/episalpha/settings.py`, `load_settings`
-- `src/episalpha/observability.py`, `configure_logging`
+- `src/episalpha/observability.py`, `configure_tracing` and `trace_url`
 - `eval_cases/manifests/*.json` (the case definitions: `supported`, `conflicting`,
   `insufficient`)
 - `tests/integration/test_package.py` (the CLI test style)
@@ -63,7 +63,10 @@ uv run episalpha research run --snapshot SNAPSHOT_ID --question "What changed an
 - **Output:**
   - The run ID, the terminal state, the artifact path, and `[FIXTURE]` for fake runs.
   - Historical-mode runs print the retrospective notice.
-  - `configure_logging(settings)` is called once at startup.
+  - `configure_tracing(settings)` is called once at startup (A14). Each command is a
+    `cli.<command>` span.
+  - Print the run's **trace ID**, and its Phoenix URL (`trace_url`) when `otlp_endpoint` is
+    configured.
 - `replay` is wired to the M4-T03 behaviour. It is stubbed here only if M4-T03 has not landed,
   with a clear "not yet implemented" exit code of 2, not a fake success.
 - **Do not:**

@@ -28,7 +28,8 @@ implementation/
 Phases: [M0-foundation](M0-foundation/PLAN.md) · [M1-contracts](M1-contracts/PLAN.md) ·
 [M2-evidence](M2-evidence/PLAN.md) · [M3-runtime](M3-runtime/PLAN.md) ·
 [M4-research-cli](M4-research-cli/PLAN.md) · [M5-browser-obsidian](M5-browser-obsidian/PLAN.md) ·
-[M6-evaluation](M6-evaluation/PLAN.md) · [M7-acceptance](M7-acceptance/PLAN.md)
+[M6-evaluation](M6-evaluation/PLAN.md) · [M7-acceptance](M7-acceptance/PLAN.md) ·
+[M8-learning](M8-learning/PLAN.md) (post-v0.1, A13)
 
 ## Session protocol (one task per session)
 
@@ -49,7 +50,7 @@ Phases: [M0-foundation](M0-foundation/PLAN.md) · [M1-contracts](M1-contracts/PL
    | **Verify** | Before building: every upstream interface the pack names exists with the stated signature; the four checks are green; the focused tests are written first and fail for the expected reason. |
    | **Build** | Smallest change that satisfies acceptance. Stay inside the pack's file list. |
    | **Test** | Focused test, then the four standard checks. Tick every acceptance item. |
-   | **Diagnose** | Run `uv run python scripts/diagnose.py` (once M0-T05 exists). Check there is no regression against the previous `logs/diagnose.jsonl` line. Check the pack's expected log events (once M0-T06 exists). Write the journal entry. |
+   | **Diagnose** | Run `uv run python scripts/diagnose.py` (once M0-T05 exists). Check there is no regression against the previous `logs/diagnose.jsonl` line. Check the pack's expected spans, in `spans.jsonl` or the local Phoenix (once M0-T06/T07 exist). Write the journal entry. |
 
 4. **Record.**
    - Phase `PROGRESS.md` row: exact commands and *real* output.
@@ -95,7 +96,7 @@ Append one block per attempt to `tasks/<task>.journal.md`. Never edit earlier bl
 - Outcome: PASS | FAIL | BLOCKED
 - Root cause (if FAIL): what was actually wrong, with evidence
 - Decision: what I chose next and why
-- Diagnose: diagnose.py summary line; expected events seen yes/no
+- Diagnose: diagnose.py summary line; expected spans seen yes/no; trace ID if any
 ```
 
 The journal makes a delivery explainable as a white box: anyone can see why each line of code

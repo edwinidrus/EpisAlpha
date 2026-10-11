@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | TODO |
+| Status | BLOCKED |
 | Depends on | M4-T03, and the G2 owner checkpoint (live ingestion of LULU, TSCO and CALX) |
 | Phase constitution | [../CONSTITUTION.md](../CONSTITUTION.md) (inherits [global](../../CONSTITUTION.md)) |
 | Plan source | plan §10 M4-T04 card; A8; acceptance rows A01–A04 and A07 |

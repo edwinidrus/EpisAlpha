@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | TODO |
+| Status | DONE (2026-10-10) |
 | Depends on | M0-T03 |
 | Phase constitution | [../CONSTITUTION.md](../CONSTITUTION.md) (inherits [global](../../CONSTITUTION.md)) |
 | Plan source | plan §1.2 (route row), §2.6, §3.8; amendments A3, A9 |

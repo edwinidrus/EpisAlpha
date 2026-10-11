@@ -13,7 +13,7 @@
 Load these and nothing else:
 - `implementation/CONSTITUTION.md`
 - `implementation/M7-acceptance/CONSTITUTION.md`
-- [../PLAN.md](../PLAN.md), the matrix ownership table (A01–A26)
+- [../PLAN.md](../PLAN.md), the matrix ownership table (A01–A29 and A32; A30–A31 belong to G8)
 - the phase journals, to find existing tests per row (`grep -rn "A0\|A1\|A2" implementation/*/tasks/*.journal.md`)
 - `implementation/DIAGNOSTICS.md`, which shows the test inventory per directory
 
@@ -27,7 +27,7 @@ Load these and nothing else:
   - Focused fixtures
   - The responsible production module, **only** if a failure needs a correction, recorded first
 - **Build:**
-  - One test per row, named `test_A01_...` through `test_A26_...`.
+  - One test per row, named `test_A01_...` through `test_A29_...`, plus `test_A32_...`.
   - Where a lower-level test already proves a row, the acceptance test drives it across the
     boundary instead of duplicating it. For example, A12 drives replay through the CLI with the
     network blocked.
@@ -63,7 +63,7 @@ Acceptance:
 - [ ] No fixture is mislabeled live.
 - [ ] Snapshot and reference boundaries remain intact across UI, tools, storage, replay, export
       and evaluation.
-- [ ] Every row in A01–A26 is automated or listed as a manual check.
+- [ ] Every row in A01–A29 and A32 is automated or listed as a manual check.
 
 ## 5. Diagnose
 

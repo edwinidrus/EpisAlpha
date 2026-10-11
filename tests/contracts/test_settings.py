@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import socket
 from decimal import Decimal
 from pathlib import Path
@@ -21,6 +22,7 @@ from episalpha.settings import (
 )
 
 EXAMPLE_CONFIG = Path(__file__).resolve().parents[2] / "config" / "demo.example.toml"
+LOCK_FILE = EXAMPLE_CONFIG.parent / "runtime.lock.json"
 
 MINIMAL = """
 [paths]
@@ -67,7 +69,10 @@ def no_network(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_example_config_loads() -> None:
     settings = load_settings(EXAMPLE_CONFIG)
 
-    assert settings.provider.model_id == "glm-5.3"
+    # The example points at the probed route; no model name is hard-coded here (article 25).
+    route = json.loads(LOCK_FILE.read_text())["model_route"]
+    assert settings.provider.model_id == route["model_id"]
+    assert settings.provider.endpoint_url == route["endpoint_url"]
     assert settings.limits.max_tool_calls == 12
 
 

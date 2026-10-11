@@ -10,20 +10,22 @@ project_root = ".."
 data_root = ".episalpha"          # relative entries resolve under project_root
 
 [provider]
-# Owner decision: Ollama, GLM 5.3. Route VERIFIED by M0-T03 on 2026-09-20.
-# The model id differs per route: the direct cloud endpoint lists it as "glm-5.3", while the
-# local Ollama daemon uses the ":cloud" suffix to proxy it. Using the wrong pairing fails.
-#   A. direct cloud HTTP (configured here), authenticated by the key reference below;
-#   B. local daemon for a signed-in CLI: endpoint http://127.0.0.1:11434/v1,
-#      model "glm-5.3:cloud", no api_key_env. Not probed.
-#
-# VERIFIED LIMITATION: this route accepts response_format (json_schema and json_object) and
-# SILENTLY IGNORES BOTH, returning prose. Structured output must come from forced tool_choice
-# arguments, validated host-side. See docs/implementation/hermes_probe.md.
-model_id = "glm-5.3"
-endpoint_url = "https://ollama.com/v1"
-api_key_env = "ENV:ollama_api_key"    # variable NAME, never the key itself
+# Owner decision (amendment A9): OpenRouter, Nemotron 3 Ultra, free tier. Probed by M0-T04;
+# see config/runtime.lock.json for what was observed. One provider, no fallbacks.
+# Free tier: 20 requests/minute, 50/day (1,000/day after >= $10 lifetime credits).
+# The :free data-logging policy is unconfirmed; the owner acknowledged it on 2026-10-11.
+# Structured output comes from forced tool_choice arguments, validated host-side (A3).
+model_id = "nvidia/nemotron-3-ultra-550b-a55b:free"
+endpoint_url = "https://openrouter.ai/api/v1"
+api_key_env = "ENV:openrouter_api_key"    # variable NAME, never the key itself
 request_timeout_seconds = 60
+#
+# HISTORY - route A, VERIFIED by M0-T03 on 2026-09-20, superseded by A9:
+#   model_id = "glm-5.3"
+#   endpoint_url = "https://ollama.com/v1"
+#   api_key_env = "ENV:ollama_api_key"
+# That route accepted response_format (json_schema and json_object) and SILENTLY IGNORED
+# BOTH, returning prose. See docs/implementation/hermes_probe.md.
 
 [demo]
 # Owner decision, resolved 2026-09-20 from public reporting on 2026 guidance changes.
@@ -107,6 +109,17 @@ enabled = false
 # accountable publisher, so they cannot establish that anything is true. Enable them only
 # once the validator enforces that an unverified source is never the sole support for a
 # material assertion.
+
+[observability]
+# Tracing (amendments A11, A14). Spans always go to <data_root>/logs/spans.jsonl, metadata only.
+# Uncomment otlp_endpoint to also send them, with full content, to the local Arize Phoenix
+# started by observability/compose.yaml. Loopback only; any other host fails validation.
+# otlp_endpoint = "http://127.0.0.1:6006/v1/traces"
+capture_content = true
+service_name = "episalpha"
+project_name = "episalpha"
+sample_ratio = 1.0
+export_timeout_seconds = 5
 
 [limits]
 # Plan section 3.8. Proposed engineering limits, not measured performance.

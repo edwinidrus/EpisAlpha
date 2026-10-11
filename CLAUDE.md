@@ -36,14 +36,18 @@ building anything:
   consult specific sections when the plan points there.
 
 Current state: M0–M2 implemented (gates G0 offline, G1, G2 passed; G0 live partial — Hermes
-runtime unproven). Gates G0–G2 are reopened by amendments A8–A11. Next task: `M0-T04` (research
-route moves to OpenRouter, live re-probe), then `M0-T05`, `M0-T06`, `M1-T05`, `M2-T05`, `M2-T06`,
-`M3-T01`. `implementation/STATUS.md` is the source of truth for task status; anything in plan
+runtime unproven). Gates G0–G2 are reopened by amendments A8–A11. M0-T04 (OpenRouter route) DONE.
+Next task: `M0-T05`, then `M0-T06`, `M0-T07`, `M1-T05`, `M2-T05`, `M2-T06`, `M3-T01`. `implementation/STATUS.md` is the source of truth for task status; anything in plan
 §4.1 not present on disk is target structure, not existing code.
 
 Research model route (amendment A9): OpenRouter `nvidia/nemotron-3-ultra-550b-a55b:free` via
-`ENV:openrouter_api_key`, **unverified until M0-T04**. The free tier allows 20 req/min and
+`ENV:openrouter_api_key`, **verified live by M0-T04 on 2026-10-10** (served by Nvidia, no fallbacks). The free tier allows 20 req/min and
 50 req/day (1,000 with ≥$10 lifetime credits). Budget live tests accordingly.
+
+Learning (amendment A13): **learn offline, act frozen.** A run never changes the skills it uses
+(read-only, versioned, hash recorded); it may only `propose_skill` as data. Promotion goes
+screen → offline evaluation → **owner approval**, and is revocable (milestone M8, after G7).
+Hermes' native memory, background review, curator and Skills Hub stay off.
 
 ## How work is executed here
 
@@ -63,9 +67,14 @@ milestone gated by the preceding gate's checks actually passing. **Start every s
   to the task's `*.journal.md`. Gate results go in the phase `GATE.md`.
   `docs/implementation/progress.md` keeps only the cross-cutting owner inputs, findings and
   amendments.
-- **Diagnose layer (A11):** run `uv run python scripts/diagnose.py` at the end of each task
-  (from M0-T05). Emit boundary events via `episalpha.observability.event` (from M0-T06). Never
-  log secrets or payload/prompt text. Logs are diagnostic, never canonical.
+- **Diagnose layer (A11, A14):**
+  - Run `uv run python scripts/diagnose.py` at the end of each task (from M0-T05).
+  - Every boundary, AI or not, emits an OpenTelemetry span via
+    `episalpha.observability.span` (from M0-T06). One trace per research run.
+  - Spans go to `<data_root>/logs/spans.jsonl` (metadata only) and, when configured, to a
+    local Arize Phoenix on `127.0.0.1:6006` (full content; M0-T07).
+  - Secrets are redacted before any exporter.
+  - Phoenix and the logs are diagnostic, never canonical. A Phoenix outage never fails a run.
 - Commits are an explicit owner action; the plan does not authorize automatic commits or pushes.
 - Stop and report **BLOCKED** when an upstream interface is unverified, credentials for a required
   live check are missing, a contract conflicts, or scope needs an unapproved architectural change.

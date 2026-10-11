@@ -1,6 +1,6 @@
-"""Live model-route checks for M0-T03.
+"""Live model-route checks for M0-T03, re-pointed at the OpenRouter route by M0-T04.
 
-These make real, paid model calls and are excluded from the default suite. Run them with::
+These make real model calls and are excluded from the default suite. Run them with::
 
     set -a; source .env; set +a
     uv run pytest -q -m live tests/integration/test_hermes_probe.py
@@ -52,18 +52,26 @@ def route() -> ProviderRoute:
 def test_recorded_capabilities_still_hold(route: ProviderRoute) -> None:
     """The probe script is the single source of truth for what this route can do."""
     probe = load_probe()
-    recorded = json.loads(LOCK_FILE.read_text())["model_route"]["observed_capabilities"]
+    model_route = json.loads(LOCK_FILE.read_text())["model_route"]
+    recorded = model_route["observed_capabilities"]
 
-    tool_call = probe.probe_tool_call(route)
+    extra = probe.NO_FALLBACKS if recorded.get("no_fallbacks_accepted") else None
+    tool_call = probe.probe_tool_call(route, extra)
     assert tool_call["forced_tool_choice_honored"] is recorded["forced_tool_choice"]
     assert tool_call["arguments_parse_as_json"] is recorded["tool_arguments_parse_as_json"]
     assert tool_call["usage_reported"] is recorded["usage_reported"]
+    # The provider that actually served the call must not drift silently (M0 article 3).
+    assert tool_call["served_by"] == model_route.get("served_by")
 
-    # Recorded as False: the endpoint accepts response_format and silently ignores it. If this
-    # ever starts passing, the relay may finally rely on provider-side structured output.
+    # Never honored so far: one route ignored response_format, another may reject it with a 4xx.
+    # Either is an accepted outcome when it is the one recorded. If this ever starts passing,
+    # the relay may finally rely on provider-side structured output.
     response_format = probe.probe_response_format(route)
-    expected = recorded["response_format_json_schema_honored"]
-    assert response_format["json_schema_honored"] is expected
+    if "response_format_rejected_status" in recorded:
+        assert response_format.get("rejected_status") == recorded["response_format_rejected_status"]
+    else:
+        expected = recorded["response_format_json_schema_honored"]
+        assert response_format["json_schema_honored"] is expected
 
 
 def test_configured_model_matches_the_probed_route(route: ProviderRoute) -> None:

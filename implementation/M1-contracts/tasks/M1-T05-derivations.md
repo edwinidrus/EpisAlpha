@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | TODO |
+| Status | DONE |
 | Depends on | G1 |
 | Phase constitution | [../CONSTITUTION.md](../CONSTITUTION.md) (inherits [global](../../CONSTITUTION.md)) |
 | Plan source | plan §3.4 "Numbers are reported or recomputed", §3.6 step 7, M1-T05 card; amendment A8 |

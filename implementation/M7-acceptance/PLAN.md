@@ -43,5 +43,12 @@ handoff.
 | A24 | Evaluator input changed | M6 |
 | A25 (A8) | Derived number wrong | M1, M4 |
 | A26 (A11) | Secret in any log | M0, M2, M3 |
+| A27 (A12) | Relay receives egress-enabling fields (`plugins`, `models`, `:online`, web_search) | M3 |
+| A28 (A12/A13) | Hermes learning artifacts after a run (skills, memories, `state.db`) | M3 |
+| A29 (A12) | Symlink or oversize file in worker output | M3, M4 |
+| A30 (A13) | Poisoned or factual skill proposal | M8 (verified at G8) |
+| A31 (A13) | Revoked skill in next run's skill set | M8 (verified at G8) |
+| A32 (A14) | A run's full story, non-AI steps included, is one trace in Phoenix with no secret; with Phoenix stopped the run still succeeds and `spans.jsonl` holds metadata only | M0, M4 |
 
-A25 and A26 extend the matrix for amendments A8 and A11. Both are additive.
+A25–A32 extend the matrix for amendments A8, A11, A12, A13 and A14. All are additive. A30 and A31
+belong to the post-v0.1 milestone M8, and are verified at G8, not G7.

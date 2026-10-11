@@ -172,3 +172,48 @@ Theme: **company guidance and demand changes**. CIKs verified against SEC `compa
 verified properties of the filings themselves. M2-T04 curates the corpus and must confirm or
 reassign them — particularly CALX, where "insufficient evidence" is a hypothesis about what the
 filings do *not* contain.
+
+## 8. Route change (A9), probed 2026-10-10 by M0-T04
+
+The research route moved from Ollama `glm-5.3` (section 2, kept as history in
+`config/runtime.lock.json` → `model_route_history`) to OpenRouter
+`nvidia/nemotron-3-ultra-550b-a55b:free`. The owner approved the live calls and acknowledged the
+unconfirmed `:free` data-logging policy on 2026-10-11 (local time). Probe prompts were synthetic.
+
+**Public listing** (`GET /api/v1/models`, no key, 2026-10-10): context 1,000,000 tokens, max
+completion 65,536, pricing 0/0, `supported_parameters` = `include_reasoning`, `max_tokens`,
+`reasoning`, `reasoning_effort`, `seed`, `temperature`, `tool_choice`, `tools`, `top_p`.
+`response_format` is **not** listed for `:free` (the paid variant lists it). The endpoints
+listing shows one provider: Nvidia.
+
+**Probe** (`uv run python scripts/probe_hermes.py config/demo.toml`, 2026-10-10T22:18:33Z, exit 0):
+
+| Observation | Result |
+|---|---|
+| Forced `tool_choice` honoured | yes, `finish_reason: tool_calls` |
+| Arguments parse as JSON | yes, keys `assertions`, `stance` |
+| `provider.allow_fallbacks: false` | accepted (HTTP 200) |
+| Served by | `Nvidia` (response `provider` field) |
+| Usage reported | yes: prompt 411, completion 213, of which reasoning 122; `cost: 0` |
+| `response_format` (json_schema) | content parsed as JSON with the requested keys |
+
+**Live tests** (`uv run pytest -q -m live tests/integration/test_hermes_probe.py`,
+2026-10-10T22:19:18Z): `2 passed in 11.36s`.
+
+**Reading the results.**
+- Structured output via forced tool choice works on this route. The relay design (A3) is
+  unchanged.
+- The `response_format` result differs from glm-5.3, which returned prose. One call is weak
+  evidence: the parameter is not listed for `:free`, so the JSON may come from the model
+  following the prompt rather than the provider enforcing the schema. The relay stays
+  tool_choice-only regardless.
+- Reasoning tokens are reported inside `completion_tokens`. Whether `max_tokens` caps reasoning
+  was not probed directly.
+- `usage.cost` is present and 0 (OpenRouter credits, not EUR). `cost_eur` stays `None` in v0.1.
+
+**Limits re-check.**
+- `max_output_tokens_per_call = 4000`: a trivial forced tool call used 213 completion tokens
+  (glm-5.3 used 600–1,600). 4,000 is comfortable here; re-measure on real stage prompts at M3-T02.
+- `max_model_requests = 8` per run at 50 requests/day gives at most 6 runs/day. Enough for M3
+  and M4, not for the M6 campaign (owner decision at M6).
+- No 429 was seen. Free-tier limits remain unprobed (`OpenRouter blog 2026`).

@@ -33,6 +33,7 @@ from episalpha.contracts.knowledge import (
     SemanticReviewStatus,
 )
 from episalpha.contracts.research import CheckResult, RunState, Thesis, ValidationReport
+from episalpha.research.derivations import DerivationError, matches, recompute
 
 QUOTATION_CHECK = "exact_quotation_matches_stored_text"
 """Named so no reader mistakes a string match for a judgment about meaning."""
@@ -137,6 +138,53 @@ def check_claim_references(records: RecordSet) -> list[CheckResult]:
             if claim.claim_id in claim.derivation.input_claim_ids:
                 results.append(_fail(check, "a claim cannot derive from itself"))
                 continue
+        results.append(_ok(check))
+    return results
+
+
+def check_derivations(records: RecordSet) -> list[CheckResult]:
+    """Every derived number must be reproduced by its registered method (amendment A8).
+
+    Claims whose references already failed are skipped, so a missing or circular input is
+    reported once, by :func:`check_claim_references`.
+    """
+    broken = {
+        result.check.removeprefix("claim.").removesuffix(".references")
+        for result in check_claim_references(records)
+        if not result.passed
+    }
+    claims = {claim.claim_id: claim for claim in records.claims}
+    results: list[CheckResult] = []
+    for claim in records.claims:
+        if claim.derivation is None or claim.claim_id in broken:
+            continue
+        check = f"claim.{claim.claim_id}.derivation"
+        if claim.numeric_fact is None:
+            results.append(_fail(check, "derived numeric method requires numeric_fact"))
+            continue
+        inputs = [claims[claim_id] for claim_id in claim.derivation.input_claim_ids]
+        missing = [item.claim_id for item in inputs if item.numeric_fact is None]
+        if missing:
+            results.append(_fail(check, f"input claim {missing[0]!r} has no numeric_fact"))
+            continue
+        facts = [item.numeric_fact for item in inputs if item.numeric_fact is not None]
+        try:
+            value, unit = recompute(claim.derivation, facts)
+        except DerivationError as error:
+            results.append(_fail(check, str(error)))
+            continue
+        method = f"{claim.derivation.method}@{claim.derivation.method_version}"
+        claimed = claim.numeric_fact
+        if claimed.unit != unit:
+            results.append(
+                _fail(check, f"claims unit {claimed.unit!r} but method {method} produces {unit!r}")
+            )
+            continue
+        if not matches(claimed.value, value):
+            results.append(
+                _fail(check, f"claims {claimed.value} but {method} recomputed {value} {unit}")
+            )
+            continue
         results.append(_ok(check))
     return results
 
@@ -269,6 +317,7 @@ def validate(
     checks: list[CheckResult] = [
         *check_relations(records),
         *check_claim_references(records),
+        *check_derivations(records),
         *check_quotations(records),
         *semantic_checks,
         *check_hypotheses(records),

@@ -151,18 +151,20 @@ def test_migration_creates_the_schema_on_an_empty_database(tmp_path: Path) -> No
     connection = connect(tmp_path / "fresh.sqlite3")
 
     assert schema_version(connection) == 0
-    assert migrate(connection) == 1
+    # Version 2 (M4-T01) adds the job lease and cancel tables; additive, see M4 PROGRESS.
+    assert migrate(connection) == 2
 
     tables = {
         row["name"]
         for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
     }
     assert {"node", "evidence_document", "relation", "run", "stage_result"} <= tables
+    assert {"run_lease", "run_cancel"} <= tables
 
 
 def test_migration_is_idempotent(connection: sqlite3.Connection) -> None:
-    assert migrate(connection) == 1
-    assert migrate(connection) == 1
+    assert migrate(connection) == 2
+    assert migrate(connection) == 2
 
 
 def test_connection_enforces_foreign_keys_and_wal(connection: sqlite3.Connection) -> None:
@@ -500,3 +502,25 @@ def test_the_search_index_follows_a_rollback(
             raise RuntimeError("deliberate failure")
 
     assert seeded.search_spans("Zorbleflux", limit=6) == ()
+
+
+def test_updating_a_run_keeps_its_stage_results(tmp_path: Path) -> None:
+    """Regression (found in M4-T01): INSERT OR REPLACE cascaded and deleted child rows."""
+    from episalpha.contracts.research import StageResult
+
+    connection = open_database(tmp_path / "update.sqlite3")
+    repository = Repository(connection)
+    record = run_record()
+    repository.admit_run(record)
+    stage = StageResult(
+        stage=RunState.RESEARCHING,
+        completed=True,
+        exit_reason="completed",
+        started_at=record.started_at,
+        ended_at=record.started_at,
+    )
+    repository.save_stage_result(record.request.run_id, 1, stage)
+    repository.update_run(record.model_copy(update={"state": RunState.SNAPSHOT_FROZEN}))
+
+    assert repository.stage_results(record.request.run_id) == (stage,)
+    assert repository.get_run(record.request.run_id).state is RunState.SNAPSHOT_FROZEN

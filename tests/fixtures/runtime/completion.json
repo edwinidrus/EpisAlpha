@@ -1,0 +1,132 @@
+{
+  "RESEARCHING": {
+    "completed": true,
+    "exit_reason": "completed",
+    "payload": {
+      "claims": [
+        {
+          "key": "c1",
+          "statement": "The issuer reported fourth quarter revenue of EUR 412.0 million.",
+          "attribution": "Synthetic Test Issuer NV quarterly release",
+          "epistemic_status": "reported",
+          "span_ids": [
+            "synthetic-span.revenue"
+          ],
+          "numeric_fact": {
+            "metric": "revenue",
+            "value": "412000000.00",
+            "unit": "EUR",
+            "period_start": "2025-10-01T00:00:00+00:00",
+            "period_end": "2025-12-31T00:00:00+00:00",
+            "accounting_basis": "IFRS consolidated, unaudited",
+            "source_context": "Q4 synthetic release, headline figure"
+          }
+        },
+        {
+          "key": "c2",
+          "statement": "Management expects demand to soften during the first half.",
+          "attribution": "Synthetic Test Issuer NV quarterly release",
+          "epistemic_status": "reported",
+          "span_ids": [
+            "synthetic-span.demand"
+          ]
+        }
+      ],
+      "hypotheses": [
+        {
+          "key": "h1",
+          "mechanism": "Softening guidance precedes order-book decline, which shows up in the following quarter's reported revenue.",
+          "assumptions": [
+            "Guidance language reflects management's order-book visibility."
+          ],
+          "supporting_claim_ids": [
+            "${RUN}.c2"
+          ],
+          "opposing_claim_ids": [
+            "${RUN}.c1"
+          ],
+          "falsification_condition": "Next reported quarterly revenue is at or above EUR 412.0 million on the same basis.",
+          "horizon_trading_days": 20
+        }
+      ]
+    },
+    "usage": {
+      "model_requests": 2,
+      "tool_calls": 2
+    }
+  },
+  "CRITIQUING": {
+    "completed": true,
+    "exit_reason": "completed",
+    "payload": {
+      "contradictions": [
+        {
+          "claim_id": "${RUN}.c1",
+          "contradicted_by_claim_id": "${RUN}.c2",
+          "span_ids": [
+            "synthetic-span.demand"
+          ]
+        }
+      ],
+      "counter_claims": [],
+      "missing_information": [
+        "Order-book size for the first half is not disclosed in the snapshot."
+      ]
+    },
+    "usage": {
+      "model_requests": 2,
+      "tool_calls": 2
+    }
+  },
+  "SYNTHESIZING": {
+    "completed": true,
+    "exit_reason": "completed",
+    "payload": {
+      "stance": "watch",
+      "assertions": [
+        {
+          "section": "observation",
+          "text": "Fourth quarter revenue was reported at EUR 412.0 million.",
+          "claim_ids": [
+            "${RUN}.c1"
+          ],
+          "hypothesis_ids": []
+        },
+        {
+          "section": "interpretation",
+          "text": "Management's softer demand outlook may precede weaker revenue.",
+          "claim_ids": [
+            "${RUN}.c2"
+          ],
+          "hypothesis_ids": [
+            "${RUN}.h1"
+          ]
+        },
+        {
+          "section": "bear_case",
+          "text": "Reported revenue so far shows no decline.",
+          "claim_ids": [
+            "${RUN}.c1"
+          ],
+          "hypothesis_ids": []
+        },
+        {
+          "section": "invalidation",
+          "text": "Next quarter revenue at or above EUR 412.0 million would falsify the mechanism.",
+          "claim_ids": [],
+          "hypothesis_ids": [
+            "${RUN}.h1"
+          ]
+        }
+      ],
+      "missing_information": [
+        "Order-book size for the first half."
+      ],
+      "next_inquiry": "Check the next quarterly filing for order-book disclosure."
+    },
+    "usage": {
+      "model_requests": 2,
+      "tool_calls": 0
+    }
+  }
+}

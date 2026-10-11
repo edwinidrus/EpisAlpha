@@ -42,9 +42,10 @@ Inherits [../CONSTITUTION.md](../CONSTITUTION.md). The articles below add to it 
     of lifetime credits. A campaign of about 100 or more requests needs either credits or a
     recorded multi-day schedule. That is an owner decision before M6-T03 runs live. Never cut
     cases to fit the cap without recording it as a limitation.
-12. **Evaluation is observable (A11).** Each trial emits:
+12. **Evaluation is observable (A11, A14).** Each trial emits an `EVALUATOR` span, linked to its
+    run trace:
     - `eval.trial`, with `campaign_id`, variant, `case_id`, `execution_id`, terminal state and
       metric numerators/denominators;
     - `eval.decision`.
 
-    Add these to `EventName` in the task that needs them. No label content is logged.
+    **No label content ever enters a span or Phoenix.** Spans carry scores and counts only.

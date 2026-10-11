@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | TODO |
+| Status | DONE |
 | Depends on | G2, M2-T05, M2-T06 |
 | Phase constitution | [../CONSTITUTION.md](../CONSTITUTION.md) (inherits [global](../../CONSTITUTION.md)) |
 | Plan source | plan §9 M3-T01 card, §3.2 (`RuntimeContext`, `StageResult`), §3.5 rule 10, §3.8; A5, A8 |
@@ -61,6 +61,7 @@ Load these and nothing else:
     | `get_support_and_contradictions` | claim or hypothesis ID | relations within the snapshot and validated current-run records only |
     | `get_numeric_facts` (A8) | instrument ID, concepts | `NumericFact`s from the snapshot's eligible XBRL or reported claims |
     | `compute_derivation` (A8) | method, method_version, input claim IDs | `{value, unit, method, method_version}` computed host-side through `recompute` |
+    | `propose_skill` (A13) | `title`, `when_to_use`, `procedure_steps[]`, `rationale`, `evidence_span_ids[]` | `{proposal_id}` — appended to the run's candidate proposals as **data only**; at most 2 per run, each ≤ 4 KiB; span IDs must exist in the snapshot; it never activates, edits or loads a skill |
 
 - **Limits:**
   - Tool calls are counted against `context.remaining_tool_calls`; when exhausted the result is
@@ -75,6 +76,8 @@ Load these and nothing else:
   - Accept a cutoff, path, URL or SQL argument.
   - Read the SQLite DB from tools. Tools read the `SnapshotView` only.
   - Import Hermes here.
+  - Let `propose_skill` write anywhere but the run's in-memory proposal list. The runner
+    persists it (M4-T01), and screening and promotion are M8.
 
 ## 2. Verify (before building)
 
@@ -106,13 +109,16 @@ Load these and nothing else:
   - The tool-call budget runs out.
   - `result_hash` is stable.
   - `compute_derivation` equals `recompute`, and an unknown method gives a typed error.
+  - `propose_skill` gives a third call `BUDGET_EXCEEDED`; an oversize proposal and unknown
+    span IDs are rejected; nothing outside the proposal list changes.
   - `FakeRuntime` payloads carry the `fixture` label.
   - A `tool.call` event is emitted per call, with no payload text.
 
 ## 3. Build
 
 1. Write the `port.py` Protocol and the `ToolResult` contract.
-2. Write the `tools.py` `ToolHost`, wrapping each method in `timed(EventName.TOOL_CALL, tool=...)`.
+2. Write the `tools.py` `ToolHost`, wrapping each method in `span("tool.<name>", SpanKind.TOOL, ...)`. `search_evidence` uses
+   `SpanKind.RETRIEVER`, with the returned span IDs as retrieval documents.
 3. Write the `fake.py` scripted runtime, with fixtures under `tests/fixtures/runtime/`.
 
 ## 4. Test

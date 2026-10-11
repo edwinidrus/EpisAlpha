@@ -20,7 +20,11 @@ Inherits [../CONSTITUTION.md](../CONSTITUTION.md). The articles below add to it 
 5. **Live calls need owner approval.** A live call sends data to an external service, so
    approval comes first. Data-policy facts that are not confirmed (for example, `:free` endpoint
    logging) are recorded as unconfirmed, with the owner's acknowledgement.
-6. **The Diagnose layer stays dependency-free.** Implementation diagnostics (M0-T05) and runtime
-   logging (M0-T06) use only the stdlib: no OpenTelemetry, no log shippers.
+6. **One observability stack (A14).**
+   - Implementation diagnostics (`scripts/diagnose.py`, M0-T05) use the stdlib only.
+   - Runtime observability uses the **OpenTelemetry SDK** (M0-T06), plus an **optional local
+     Arize Phoenix** (M0-T07).
+   - The system runs fully offline without Phoenix, through the JSONL fallback exporter.
+   - No other observability stack: no Langfuse, no Prometheus or Grafana, no log shippers.
 7. **Diagnostics never change the code under test.** `scripts/diagnose.py` reads and runs checks.
    It never edits source or tests and never "fixes" anything.

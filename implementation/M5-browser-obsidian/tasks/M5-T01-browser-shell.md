@@ -42,7 +42,9 @@ Load these and nothing else:
     - elapsed time;
     - usage, where unknown is shown as "unknown";
     - the `[FIXTURE]` or `LIVE` label, and the saved-replay label;
-    - the retrospective notice in historical mode.
+    - the retrospective notice in historical mode;
+    - an **"Open trace in Phoenix"** link from `trace_url(trace_id)`, shown only when Phoenix
+      is configured (A14).
   - The thesis is rendered from `ThesisAssertion`s only, with their status chips.
 - **Out of scope:** the evidence drilldown (M5-T02), export (M5-T03), and the Experiments tab
   content (M6-T04).
@@ -88,7 +90,8 @@ Acceptance:
 ## 5. Diagnose
 
 - [ ] `diagnose.py`: no regression; `tests/ui` appears.
-- [ ] A manual smoke with a fake run shows, in `episalpha.jsonl`, one admission trail per submit.
+- [ ] A manual smoke with a fake run shows one `ui.submit` → `research.run` trace per submit, in
+      `spans.jsonl` or Phoenix.
       Paste it in the journal.
 
 ## 6. Stop and hand off

@@ -13,19 +13,21 @@ session see what works and what does not.
 | M0-T02 | Resolve settings and record execution state | DONE | M0-T01 | — |
 | M0-T02b | Source model expansion (A2) | DONE | M0-T02 | — |
 | M0-T03 | Probe official Hermes and one model route | DONE (Hermes end-to-end unproven; carried to M3) | M0-T02 | — |
-| M0-T04 | Research route moves to OpenRouter (A9) | TODO | M0-T03 | [pack](tasks/M0-T04-openrouter-route.md) |
-| M0-T05 | Implementation diagnostics script (A11) | TODO | M0-T01 | [pack](tasks/M0-T05-diagnose-script.md) |
-| M0-T06 | Runtime observability foundation (A11) | TODO | M0-T02 | [pack](tasks/M0-T06-observability.md) |
+| M0-T04 | Research route moves to OpenRouter (A9) | DONE (verified live 2026-10-10) | M0-T03 | [pack](tasks/M0-T04-openrouter-route.md) |
+| M0-T05 | Implementation diagnostics script (A11) | DONE | M0-T01 | [pack](tasks/M0-T05-diagnose-script.md) |
+| M0-T06 | OpenTelemetry observability foundation (A11, A14) | DONE | M0-T02 | [pack](tasks/M0-T06-observability.md) |
+| M0-T07 | Local Arize Phoenix diagnose service (A14) | DONE | M0-T06 | [pack](tasks/M0-T07-phoenix.md) |
 
-Order: M0-T04 → M0-T05 → M0-T06. T05 and T06 do not depend on T04. If T04 is blocked on a
-live call, T05 and T06 can proceed.
+Order: M0-T04 → M0-T05 → M0-T06 → M0-T07. T05, T06 and T07 do not depend on T04. If T04 is
+blocked on a live call, they can proceed.
 
 ## Scope
 
 - **In:**
   - Route switch: config, lock, probe evidence.
   - `scripts/diagnose.py`.
-  - `src/episalpha/observability.py`.
+  - `src/episalpha/observability.py`, on OpenTelemetry, with a JSONL fallback exporter.
+  - `observability/compose.yaml`, a local Phoenix on `127.0.0.1:6006`.
 - **Out:**
   - The model relay (M3-T02).
   - Hermes runtime work (M3).

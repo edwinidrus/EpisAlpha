@@ -1,6 +1,6 @@
 # Gate G1: canonical contracts and invariants
 
-**Status:** PASSED (2026-09-20) · **reopened** by A8 (M1-T05).
+**Status:** PASSED 2026-10-10 (re-run after A8) · owner review of serialized examples outstanding.
 
 ## Commands
 
@@ -18,9 +18,10 @@ uv run pytest -q tests/contracts tests/evidence/test_temporal.py tests/research/
 - [x] The validator fails missing or mismatched citations, invalid relations and unsupported
       relabeling. Semantic status stays `unreviewed` without an assessment.
 - [x] Schema version frozen at `1`.
-- [ ] **A8:** every derived numeric claim is recomputed. A mismatch, an unknown method or
+- [x] **A8:** every derived numeric claim is recomputed. A mismatch, an unknown method or
       incompatible inputs fails (M1-T05).
-- [ ] The owner reviews representative serialized examples, including one derived claim.
+- [ ] The owner reviews representative serialized examples, including one derived claim
+      (prepared in [REPORT.md](REPORT.md)).
 
 ## Results log (append-only; real output only)
 
@@ -39,3 +40,17 @@ Re-run after the source-model expansion (M0-T02b): `uv run pytest -q -m "not liv
 2 deselected. All four standard checks still passed.
 
 **Schema version frozen at `1`** (`episalpha.contracts.knowledge.SCHEMA_VERSION`).
+
+### 2026-10-10 23:00 UTC — re-run after A8 (M1-T05): PASSED
+
+```
+uv run pytest -q tests/contracts tests/evidence/test_temporal.py tests/research/test_validation.py tests/research/test_derivations.py
+  -> 212 passed
+uv run ruff check .            -> All checks passed!
+uv run ruff format --check .   -> 41 files already formatted
+uv run mypy src/episalpha      -> Success: no issues found in 22 source files
+uv run pytest -q -m "not live" -> 370 passed, 3 deselected
+uv run python scripts/diagnose.py -> diagnose: PASS | tests 370 passed | failures 0 | regressions 0 | orphans 0
+```
+
+Open: owner review of serialized examples (one derived claim is in REPORT.md).

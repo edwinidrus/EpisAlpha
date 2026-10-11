@@ -34,6 +34,6 @@ Inherits [../CONSTITUTION.md](../CONSTITUTION.md). The articles below add to it 
    Changing the cutoff changes eligibility, and the rule that decides it is the same one.
 9. **The default suite stays offline.** Every connector takes an injected `Transport`; tests use
    recorded fixtures under `tests/fixtures/connectors/`.
-10. **Instrumented I/O (A11).** From M2-T06 on, each connector request, response and refusal
-    emits one event, carrying the source ID, URL host, status, byte size, payload hash and
-    duration. Bodies are never logged.
+10. **Instrumented I/O (A11, A14).** From M2-T06 on, each connector call is one
+    `connector.fetch` span. It carries the source ID, URL host, status, outcome, byte size,
+    payload hash and duration. Bodies and query strings are never recorded.

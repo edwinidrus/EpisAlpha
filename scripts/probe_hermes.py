@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Disposable integration probe for M0-T03.
+"""Disposable integration probe for M0-T03, extended for the OpenRouter route in M0-T04.
 
 Answers one question: what does the selected model route actually support, as opposed to what
 its OpenAI-compatible surface advertises? Findings are recorded in
@@ -32,6 +32,10 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 from episalpha.settings import ProviderRoute, load_settings  # noqa: E402
 
 TIMEOUT_SECONDS = 120
+
+# OpenRouter-specific: forbid routing to another provider. Sent only after a call shows the
+# endpoint accepts the field; a rejection is recorded, not hidden (M0 constitution article 3).
+NO_FALLBACKS: dict[str, Any] = {"provider": {"allow_fallbacks": False}}
 
 SUBMIT_THESIS_TOOL: dict[str, Any] = {
     "type": "function",
@@ -100,11 +104,12 @@ def call(route: ProviderRoute, payload: dict[str, Any]) -> dict[str, Any]:
     return parsed
 
 
-def probe_tool_call(route: ProviderRoute) -> dict[str, Any]:
+def probe_tool_call(route: ProviderRoute, extra: dict[str, Any] | None = None) -> dict[str, Any]:
     """Does a forced tool call return arguments that parse against the declared schema?"""
     response = call(
         route,
         {
+            **(extra or {}),
             "messages": [
                 {
                     "role": "user",
@@ -126,6 +131,8 @@ def probe_tool_call(route: ProviderRoute) -> dict[str, Any]:
         "forced_tool_choice_honored": bool(tool_calls),
         "arguments_parse_as_json": False,
         "usage_reported": response.get("usage") is not None,
+        "usage": response.get("usage"),
+        "served_by": response.get("provider"),
     }
     if tool_calls:
         try:
@@ -138,20 +145,30 @@ def probe_tool_call(route: ProviderRoute) -> dict[str, Any]:
 
 
 def probe_response_format(route: ProviderRoute) -> dict[str, Any]:
-    """Is provider-side structured output honored, or silently ignored?"""
-    response = call(
-        route,
-        {
-            "messages": [
-                {
-                    "role": "user",
-                    "content": "Return stance=watch and one assertion about synthetic test data.",
-                }
-            ],
-            "response_format": JSON_SCHEMA_FORMAT,
-            "max_tokens": 2000,
-        },
-    )
+    """Is provider-side structured output honored, silently ignored, or rejected?"""
+    try:
+        response = call(
+            route,
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": (
+                            "Return stance=watch and one assertion about synthetic test data."
+                        ),
+                    }
+                ],
+                "response_format": JSON_SCHEMA_FORMAT,
+                "max_tokens": 2000,
+            },
+        )
+    except urllib.error.HTTPError as error:
+        # A rejection is an observation, not a probe failure.
+        return {
+            "json_schema_honored": False,
+            "rejected_status": error.code,
+            "body_prefix": error.read()[:200].decode(errors="replace"),
+        }
     content = response["choices"][0]["message"].get("content") or ""
     try:
         json.loads(content)
@@ -172,13 +189,20 @@ def main() -> int:
     print(f"model    : {route.model_id}")
     print(f"credential resolved: {route.credential() is not None}")
 
-    findings = {
-        "tool_call": probe_tool_call(route),
-        "response_format": probe_response_format(route),
-    }
+    try:
+        tool_call = probe_tool_call(route, NO_FALLBACKS)
+        tool_call["no_fallbacks_accepted"] = True
+    except urllib.error.HTTPError as error:
+        if not 400 <= error.code < 500 or error.code == 429:
+            raise
+        print(f"provider pin refused with HTTP {error.code}; retrying without it")
+        tool_call = probe_tool_call(route)
+        tool_call["no_fallbacks_accepted"] = False
+        tool_call["no_fallbacks_rejected_status"] = error.code
+
+    findings = {"tool_call": tool_call, "response_format": probe_response_format(route)}
     print(json.dumps(findings, indent=2))
 
-    tool_call = findings["tool_call"]
     if not (tool_call["forced_tool_choice_honored"] and tool_call["arguments_parse_as_json"]):
         print(
             "BLOCKED: this route cannot deliver structured output via tool calls", file=sys.stderr
@@ -191,5 +215,8 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except urllib.error.HTTPError as error:
-        print(f"HTTP {error.code}: {error.read()[:400]!r}", file=sys.stderr)
+        # Retry-After on a 429 is evidence for the free-tier limit.
+        retry_after = error.headers.get("Retry-After")
+        body = error.read()[:400]
+        print(f"HTTP {error.code} Retry-After={retry_after}: {body!r}", file=sys.stderr)
         raise SystemExit(1) from None

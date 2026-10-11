@@ -369,10 +369,27 @@ class Repository:
         )
 
     def update_run(self, record: RunRecord) -> None:
-        """Persist a run that already exists. Refuses to invent one."""
-        if self.get_run(record.request.run_id) is None:
+        """Persist a run that already exists. Refuses to invent one.
+
+        An ``UPDATE``, never ``INSERT OR REPLACE``: REPLACE deletes the row first, and the
+        ``ON DELETE CASCADE`` foreign keys would silently wipe the run's stage results and lease.
+        """
+        cursor = self.connection.execute(
+            "UPDATE run SET state = ?, snapshot_id = ?, thesis_id = ?, error_code = ?, "
+            "reason = ?, ended_at = ?, payload = ? WHERE run_id = ?",
+            (
+                record.state.value,
+                record.snapshot_id,
+                record.thesis_id,
+                record.error_code.value if record.error_code else None,
+                record.reason,
+                record.ended_at.isoformat() if record.ended_at else None,
+                _dump(record),
+                record.request.run_id,
+            ),
+        )
+        if cursor.rowcount != 1:
             raise IntegrityError(f"run {record.request.run_id!r} has not been admitted")
-        self._write_run(record)
 
     def get_run(self, run_id: str) -> RunRecord | None:
         return self._get("run", "run_id", run_id, RunRecord)
@@ -410,7 +427,7 @@ class Repository:
 
     def stage_results(self, run_id: str) -> tuple[StageResult, ...]:
         rows = self.connection.execute(
-            "SELECT payload FROM stage_result WHERE run_id = ? ORDER BY started_at, attempt",
+            "SELECT payload FROM stage_result WHERE run_id = ? ORDER BY started_at, rowid",
             (run_id,),
         ).fetchall()
         return tuple(_load(StageResult, row) for row in rows)

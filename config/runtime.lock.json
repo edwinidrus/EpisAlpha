@@ -25,34 +25,135 @@
       "provider_substitution": "fallback_model, providers_allowed/ignored/order - must be left unset; the plan forbids automatic substitution"
     },
     "custom_tool_injection": null,
-    "custom_tool_injection_finding": "Confirmed on 0.21.3, not only 0.19.0. AIAgent.__init__ exposes none of mcp_servers, tools, extra_tools, custom_tools or tool_registry, and toolsets.create_custom_toolset(name, description, tools, includes) composes existing tool NAMES only. EpisAlpha's typed tools therefore reach Hermes over MCP, configured by file (mcp.json under $HERMES_HOME/~/.hermes). MCP tools surface with an 'mcp_' name prefix, which create_custom_toolset can then allowlist: EpisAlpha MCP server -> mcp.json -> create_custom_toolset('episalpha', tools=['mcp_...']) -> enabled_toolsets=['episalpha']. This is the M3-T01/M3-T03 design, still to be proven with a working probe before the runtime is built on it.",
+    "custom_tool_injection_finding": "Confirmed on 0.21.3, not only 0.19.0. AIAgent.__init__ exposes none of mcp_servers, tools, extra_tools, custom_tools or tool_registry, and toolsets.create_custom_toolset(name, description, tools, includes) composes existing tool NAMES only. EpisAlpha's typed tools therefore reach Hermes over MCP, configured by file (mcp.json under $HERMES_HOME/~/.hermes). MCP tools surface with an 'mcp_' name prefix, which create_custom_toolset can then allowlist: EpisAlpha MCP server -> mcp.json -> create_custom_toolset('episalpha', tools=['mcp_...']) -> enabled_toolsets=['episalpha']. This is the M3-T01/M3-T03 design, still to be proven with a working probe before the runtime is built on it. PROVEN by M3-T01 on 2026-10-10: see hermes.mcp_path_proof.",
     "end_to_end_agent_run": null,
     "end_to_end_agent_run_reason": "Not attempted. M0-T03 stops before building a runtime, and driving a real agent turn with EpisAlpha tools depends on the MCP adapter decision above.",
-    "api_surface_verified_at_pinned_commit": true
+    "api_surface_verified_at_pinned_commit": true,
+    "mcp_path_proof": {
+      "proved_at": "2026-10-10T22:56:50+00:00",
+      "task": "M3-T01",
+      "hermes_install": "git clone at c1488ac947c9bc33fd65ec464548dc9d8edd6122 (0.21.3) in .episalpha/vendor/hermes-agent, editable install with the [mcp] extra (mcp 2.0.0) in its own venv .episalpha/vendor/hermes-venv",
+      "server": "scripts/probe_mcp.py: stdlib newline-delimited JSON-RPC over stdio, legacy initialize handshake",
+      "negotiated_protocol_version": "2025-11-25",
+      "client_requests_seen": [
+        "initialize",
+        "notifications/initialized",
+        "tools/list",
+        "tools/call"
+      ],
+      "registration": "tools.mcp_tool_discovery.register_mcp_servers({'episalpha': {'command': ..., 'args': [...]}})",
+      "tool_name_prefix": "mcp__<server>__<tool>, e.g. mcp__episalpha__echo_span (double underscores; the M0-T03 note 'mcp_' was wrong)",
+      "allowlist": "toolsets.create_custom_toolset('episalpha', ..., tools=[names]) + AIAgent(enabled_toolsets=['episalpha'])",
+      "tool_search_finding": "With tools.tool_search.enabled at its default 'auto', Hermes replaced the MCP tool with tool_search/tool_describe/tool_call meta-tools; the model spent 3 requests discovering the tool and never called it. With tools.tool_search.enabled: 'off' in config.yaml the model saw exactly ['mcp__episalpha__echo_span'], called it once and answered with the exact quote in 2 API calls. EpisAlpha's harness must set tool_search off.",
+      "live_requests_spent": "about 6 (first attempt 3 plus a summary request, second attempt 2)"
+    },
+    "stage_runtime": {
+      "verified_at": "2026-10-11T06:17:27+00:00",
+      "task": "M3-T03",
+      "worker": "worker/hermes_stage.py in the pinned Hermes venv; host adapter src/episalpha/runtime/hermes.py",
+      "tools_transport": "host MCP server over Streamable HTTP (stdlib), url + Authorization header",
+      "streaming": "Hermes streams by default; the relay replays a non-streaming completion as SSE",
+      "learning_keys_at_pin": "memory.memory_enabled, memory.user_profile_enabled, auxiliary.background_review.enabled, curator.enabled, skills.write_approval, tools.tool_search.enabled all exist; defaults on/auto; the worker sets them off (write_approval true)",
+      "state_db": "pinned Hermes creates an empty state.db on `import run_agent`; with session_db unset no sessions or messages are written (0 rows observed)",
+      "summary_request": "on iteration exhaustion Hermes makes one extra toolless 'summary' request; the worker disables it (agent._handle_max_iterations)",
+      "live_run": "3 stages, 6 requests, all served by Nvidia, trace 279e56da2fd6b7436795661d00283c7b"
+    },
+    "worker_image": {
+      "tag": "episalpha-worker:c1488ac",
+      "id": "sha256:6d1ed1ee5e6a18542d8ad64ac087930e5e5843a69a7a69d046485f45412854cd",
+      "built_at": "2026-10-11",
+      "base": "python@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258 (python:3.12-slim-bookworm)",
+      "hermes": "git archive of c1488ac947c9bc33fd65ec464548dc9d8edd6122, uv sync --frozen --no-dev --extra mcp (uv 0.11.6)",
+      "recipe": "container/Dockerfile via episalpha.runtime.sandbox.build_image",
+      "note": "A local build: its content ID is the pin. Rebuilding may produce a different ID (base and lock are pinned, but layer metadata differs); record the new ID when rebuilding."
+    }
   },
   "model_route": {
-    "provider": "ollama",
-    "endpoint_url": "https://ollama.com/v1",
+    "provider": "openrouter",
+    "endpoint_url": "https://openrouter.ai/api/v1",
     "api_mode": "openai_chat_completions",
-    "model_id": "glm-5.3",
-    "credential_reference": "ENV:ollama_api_key",
+    "model_id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "credential_reference": "ENV:openrouter_api_key",
     "verified": true,
-    "model_id_differs_per_route": {
-      "direct_cloud": "glm-5.3",
-      "local_daemon_proxy": "glm-5.3:cloud (not probed)"
-    },
+    "probed_at": "2026-10-10T22:18:33+00:00",
+    "probed_by": "scripts/probe_hermes.py config/demo.toml (M0-T04)",
+    "served_by": "Nvidia",
+    "served_by_note": "Top-level 'provider' field of the OpenRouter response. The public endpoints listing (2026-10-10) shows Nvidia as the only provider for the :free variant.",
     "observed_capabilities": {
       "tool_calls": true,
       "forced_tool_choice": true,
       "tool_arguments_parse_as_json": true,
-      "nested_tool_schema_respected": true,
       "usage_reported": true,
-      "response_format_json_schema_honored": false,
-      "response_format_json_object_honored": false
+      "reasoning_tokens_reported": true,
+      "no_fallbacks_accepted": true,
+      "response_format_json_schema_honored": true,
+      "response_format_json_object_honored": null,
+      "tool_choice_required_honored": false
     },
+    "observation_notes": {
+      "response_format_json_schema_honored": "One call: the content parsed as JSON matching the requested keys. response_format is NOT in the :free supported_parameters listing, so this may be the model following the prompt rather than the provider enforcing the schema. The relay stays tool_choice-only (A3) either way.",
+      "response_format_json_object_honored": "Not probed in M0-T04.",
+      "no_fallbacks_accepted": "provider.allow_fallbacks=false was sent with the forced tool call and accepted (HTTP 200).",
+      "reasoning_tokens": "One forced tool call: completion_tokens 213, of which reasoning_tokens 122; prompt_tokens 411. Reasoning is reported inside completion_tokens. Whether max_tokens caps reasoning was not probed directly.",
+      "tool_choice_required_honored": "M3-T03, 2026-10-11: one call with tool_choice 'required' returned finish_reason 'stop' and a pseudo tool call written into the content text. Named tool_choice (M0-T04) works; the relay forces the named submit tool on each stage's last request instead."
+    },
+    "listing_2026_10_10": {
+      "source": "GET https://openrouter.ai/api/v1/models (public, no key)",
+      "context_length": 1000000,
+      "max_completion_tokens": 65536,
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "reasoning_effort",
+        "seed",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      }
+    },
+    "free_tier_limits": {
+      "requests_per_minute": 20,
+      "requests_per_day": 50,
+      "requests_per_day_with_10_usd_lifetime_credits": 1000,
+      "source": "OpenRouter blog 2026, unprobed"
+    },
+    "data_policy": "unconfirmed; owner acknowledged 2026-10-11",
     "pricing_available": null,
-    "pricing_note": "No pricing field observed in the usage payload, so cost stays unknown (plan section 3.8, acceptance row A22)."
+    "pricing_note": "usage.cost was present and 0 (free tier, OpenRouter credits, not EUR). cost_eur stays None in v0.1 (global constitution article 13)."
   },
+  "model_route_history": [
+    {
+      "provider": "ollama",
+      "endpoint_url": "https://ollama.com/v1",
+      "api_mode": "openai_chat_completions",
+      "model_id": "glm-5.3",
+      "credential_reference": "ENV:ollama_api_key",
+      "verified": true,
+      "model_id_differs_per_route": {
+        "direct_cloud": "glm-5.3",
+        "local_daemon_proxy": "glm-5.3:cloud (not probed)"
+      },
+      "observed_capabilities": {
+        "tool_calls": true,
+        "forced_tool_choice": true,
+        "tool_arguments_parse_as_json": true,
+        "nested_tool_schema_respected": true,
+        "usage_reported": true,
+        "response_format_json_schema_honored": false,
+        "response_format_json_object_honored": false
+      },
+      "pricing_available": null,
+      "pricing_note": "No pricing field observed in the usage payload, so cost stays unknown (plan section 3.8, acceptance row A22).",
+      "superseded_by": "amendment A9 (M0-T04, 2026-10-10)",
+      "probed_at": "2026-09-20"
+    }
+  ],
   "consequences_for_episalpha": [
     "Structured final output must come from forced tool-call arguments, never from response_format. The OpenAI-compatible surface accepts response_format and silently ignores it, returning prose - a silent failure, not an error.",
     "The bounded output repair in plan section 3.6 step 7 has a concrete justification: the host must validate and repair candidate JSON itself.",

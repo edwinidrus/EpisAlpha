@@ -1,0 +1,11 @@
+{
+  "RESEARCHING": {
+    "completed": false,
+    "exit_reason": "cancelled",
+    "payload": null,
+    "usage": {
+      "model_requests": 1,
+      "tool_calls": 1
+    }
+  }
+}

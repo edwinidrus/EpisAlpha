@@ -13,7 +13,7 @@ that every derived number is recomputed rather than trusted.
 | M1-T02 | Research contracts, lifecycle, errors | DONE | M1-T01 | — |
 | M1-T03 | Temporal eligibility policy | DONE | M1-T02 | — |
 | M1-T04 | Structural evidence and graph validator | DONE | M1-T03 | — |
-| M1-T05 | Derivation registry and recomputation (A8) | TODO | G1 | [pack](tasks/M1-T05-derivations.md) |
+| M1-T05 | Derivation registry and recomputation (A8) | DONE | G1 | [pack](tasks/M1-T05-derivations.md) |
 
 ## Scope
 

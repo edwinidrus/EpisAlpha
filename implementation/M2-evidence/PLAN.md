@@ -13,8 +13,8 @@ Numeric fundamentals arrive point-in-time, and every connector call is observabl
 | M2-T02 | Content-addressed payloads and exact spans | DONE | M2-T01 | — |
 | M2-T03 | Narrow source adapters | DONE | M2-T02 | — |
 | M2-T04 | Frozen snapshot builder and demo corpus | DONE | M2-T03 | — |
-| M2-T05 | Point-in-time XBRL fundamentals (A8) | TODO | M2-T03, M1-T05 | [pack](tasks/M2-T05-xbrl.md) |
-| M2-T06 | Instrument connectors with events (A11) | TODO | M0-T06, M2-T05 | [pack](tasks/M2-T06-connector-events.md) |
+| M2-T05 | Point-in-time XBRL fundamentals (A8) | DONE | M2-T03, M1-T05 | [pack](tasks/M2-T05-xbrl.md) |
+| M2-T06 | Instrument connectors with events (A11) | DONE | M0-T06, M2-T05 | [pack](tasks/M2-T06-connector-events.md) |
 
 ## Scope
 

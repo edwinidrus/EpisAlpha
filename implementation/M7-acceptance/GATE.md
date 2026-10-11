@@ -20,7 +20,7 @@ unavailable; offline success is reported separately.
 
 ## Criteria
 
-- [ ] Acceptance rows A01–A26 each have a passing test, or a recorded manual check, or BLOCKED
+- [ ] Acceptance rows A01–A29 and A32 each have a passing test, or a recorded manual check, or BLOCKED
       with a reason.
 - [ ] The smoke script passes from a clean checkout by following the README. Replay works with
       no network.

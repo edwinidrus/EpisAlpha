@@ -15,7 +15,7 @@ Load these and nothing else:
 - `implementation/M5-browser-obsidian/CONSTITUTION.md`, articles 6–8 and 10
 - `src/episalpha/knowledge/query.py` (M5-T02), the data source for notes
 - `src/episalpha/cli.py`, where the command is added
-- `src/episalpha/observability.py`, where `EXPORT_COMPLETED` is added to `EventName`
+- `src/episalpha/observability.py`: `span`, used for the `export.obsidian` span
 
 **The command:**
 

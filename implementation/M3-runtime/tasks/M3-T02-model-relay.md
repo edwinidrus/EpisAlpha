@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | TODO |
+| Status | DONE |
 | Depends on | M3-T01, M0-T04 |
 | Phase constitution | [../CONSTITUTION.md](../CONSTITUTION.md) (inherits [global](../../CONSTITUTION.md)) |
 | Plan source | plan §9 M3-T02 card, §2.6, §3.8; amendments A3, A9 |
@@ -45,7 +45,14 @@ Load these and nothing else:
   - Request checks:
     - Reject a token mismatch with `NOT_AUTHORIZED`.
     - Reject a model other than `route.model_id` and a path other than `/chat/completions`.
-    - Strip or reject `response_format` (reject, and log the attempt).
+    - **Field allowlist (A12, M3 constitution article 13).** Forward only `model`,
+      `messages`, `tools`, `tool_choice`, `max_tokens`, `temperature`, `top_p`, `seed`, and
+      `reasoning` if verified. Reject any other field, including `response_format`,
+      `plugins`, `models`, `provider`, `route` and `transforms`. Also reject a model ID with a
+      `:` variant suffix the lock does not record (for example `:online`), and tools named
+      `openrouter:*` or `web_search`. Log the attempt.
+    - Upstream concurrency is 1. A second in-flight request waits or is refused; it is never
+      parallel.
     - Clamp or reject `max_tokens` above `max_output_tokens_per_call`.
     - Reject a body larger than `max_request_body_bytes`.
     - Add `provider: {"allow_fallbacks": false}` **only if M0-T04 recorded it as accepted**.
@@ -59,7 +66,11 @@ Load these and nothing else:
     - Prompt and completion tokens come from the response `usage`, or `None` when absent.
     - `cost_eur` is always `None`.
     - `served_by` is read from the response `provider` field.
-  - Every attempt emits a `model.call` event. Credential values are never logged and never
+  - Every attempt is one `model.call` span (`LLM`, A14). Attributes: `llm.model_name`,
+    `served_by`, prompt and completion token counts (names verified against OpenInference at
+    build time), HTTP status, attempt and request index. With `capture_content` on, the input
+    and output messages are attached; they reach only the local Phoenix exporter, and the JSONL
+    receives a hash and size. Credential values are never logged and never
     returned.
   - `cancel()` closes the in-flight request.
 - **Remove the `eur_cap` ponytail block in `settings.py` only if** this task implements cost
@@ -81,7 +92,10 @@ Load these and nothing else:
 - [ ] Baseline: the four checks and `diagnose.py` are green.
 - [ ] **Red first.** Write `tests/runtime/test_model_relay.py`. Cover:
   - A wrong token, an unknown model and an unknown path are rejected.
-  - `response_format` is rejected.
+  - `response_format`, `plugins: [{"id": "web"}]`, `models: [...]`, a `provider` override,
+    the model `<id>:online`, and a tool named `openrouter:web_search` are each rejected
+    before any upstream call.
+  - Two concurrent `forward` calls never reach the transport in parallel.
   - Oversize body; `max_tokens` cap.
   - The request budget across "stages", with no reset.
   - Retries count toward the budget.

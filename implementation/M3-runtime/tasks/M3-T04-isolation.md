@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | TODO |
+| Status | DONE |
 | Depends on | M3-T03 |
 | Phase constitution | [../CONSTITUTION.md](../CONSTITUTION.md) (inherits [global](../../CONSTITUTION.md)) |
 | Plan source | plan §9 M3-T04 card, §4.2 (Docker image, A5), §14 rows A09 and A10, cancellation target |
@@ -31,7 +31,23 @@ Load these and nothing else:
     Docker). A fake provider is fine here.
 - **Produces:** `class SandboxedWorker`, with `start(run_id, snapshot_dir, harness_dir, out_dir) -> handle`,
   `wait(handle, deadline)` and `cancel(handle)`.
-  - Mounts: the snapshot RO, the harness RO, and `out/<run_id>` RW.
+  - Mounts: the snapshot RO, the harness RO, the promoted skills RO (A13; empty in v0.1), and
+    `out/<run_id>` RW.
+  - **Hardening (A12):**
+    - image pinned **by digest**, not by tag;
+    - non-root user;
+    - `cap_drop: [ALL]` and `security_opt: [no-new-privileges:true]`;
+    - `read_only: true` root filesystem, with size-capped tmpfs for `/tmp` and `HERMES_HOME`;
+    - `pids_limit`, memory and CPU limits;
+    - the default seccomp profile;
+    - `dns` configured so external names do not resolve (the CVE-2024-29018 class).
+  - **Host engine (owner decision, recorded in the journal).**
+    - The engine seen on 2026-10-10 is rootful Docker Engine 29.1.3 inside WSL Ubuntu 24.04,
+      with only the default seccomp profile. A container escape would land as root in the
+      distro that holds `.env`, the repository and `/mnt/c`.
+    - Recommended: run the worker under **rootless Docker** or `userns-remap`.
+    - Optional: the gVisor `runsc` runtime, if it installs on WSL2.
+    - Keep the engine patched, and record its version.
   - It never mounts the repository, `.episalpha/app.sqlite3`, the labels path, the Docker
     socket or `.env`.
   - Networks: the worker sits on an internal network whose only reachable endpoint is the relay
@@ -71,7 +87,14 @@ Load these and nothing else:
    - read the labels path;
    - open the canonical DB;
    - write to the snapshot;
-   - `curl https://example.com`.
+   - `curl https://example.com`;
+   - resolve an external name (`getent hosts example.com`), so DNS exfiltration is blocked;
+   - list `/mnt/c` or the host home directory;
+   - connect to any host-gateway port other than the relay;
+   - write to the promoted-skills mount;
+   - a fork bomb is contained by `pids_limit`, and disk fill is contained by the tmpfs cap;
+   - a symlink planted in `out/<run_id>` pointing at a host path is **not followed** by the
+     host reader.
    Then cancel a sleeping worker and assert it stops in under 10 s, with no orphan processes.
 
 ## 4. Test
@@ -88,6 +111,11 @@ Acceptance:
 - [ ] An unrelated outbound connection fails.
 - [ ] Timeout and cancel terminate child processes, with the measured time recorded.
 - [ ] Partial output is retained but never marked complete.
+- [ ] External DNS does not resolve. `/mnt/c` and the host home are invisible. Only the relay
+      port is reachable. The skills mount is read-only. A planted symlink is not followed.
+      Fork bomb and disk fill are contained.
+- [ ] The image is pinned by digest. The host-engine decision (rootless, userns-remap or gVisor)
+      is recorded.
 
 ## 5. Diagnose
 

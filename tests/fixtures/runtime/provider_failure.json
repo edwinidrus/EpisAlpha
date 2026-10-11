@@ -1,0 +1,11 @@
+{
+  "RESEARCHING": {
+    "completed": false,
+    "exit_reason": "provider_failure",
+    "payload": null,
+    "usage": {
+      "model_requests": 2,
+      "tool_calls": 0
+    }
+  }
+}

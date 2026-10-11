@@ -24,7 +24,8 @@ uv run python scripts/diagnose.py
 - [ ] Stored: the manifest, label and evaluator hashes, all trial IDs (failed ones included),
       the actual comparison report, and the owner decision.
 - [ ] An honest rejection is accepted as a valid result (A18). No invented improvement.
-- [ ] The trial and decision events reconstruct the campaign from `episalpha.jsonl`.
+- [ ] The `eval.trial` and `eval.decision` spans, linked to their run traces, reconstruct the
+      campaign. No label content appears in Phoenix.
 
 ## Results log (append-only; real output only)
 

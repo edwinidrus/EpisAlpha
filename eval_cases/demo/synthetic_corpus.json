@@ -1,0 +1,62 @@
+{
+  "notice": "SYNTHETIC demo corpus for fake-runtime runs. Not a real company, filing or figure; never evidence about any real issuer.",
+  "entities": [
+    {
+      "entity_id": "synthetic-issuer",
+      "kind": "corporation",
+      "canonical_name": "Synthetic Test Issuer NV",
+      "aliases": [
+        "Synthetic Test Issuer"
+      ],
+      "external_identifiers": {
+        "test_registry": "SYN-0001"
+      }
+    }
+  ],
+  "instruments": [
+    {
+      "instrument_id": "synthetic-issuer.eq",
+      "issuer_entity_id": "synthetic-issuer",
+      "exchange": "TESTEX",
+      "currency": "EUR",
+      "ticker_aliases": []
+    }
+  ],
+  "documents": [
+    {
+      "document_id": "synthetic-doc.v1",
+      "source_uri": "https://example.invalid/synthetic/q4-release",
+      "source_type": "company_release",
+      "source_family_id": "synthetic-release-family",
+      "payload_hash": "a557a44be5fc223a337b52496a9c05188e2e04a37bfcbb7ca97b1220f8887e23",
+      "parsed_text_hash": "a557a44be5fc223a337b52496a9c05188e2e04a37bfcbb7ca97b1220f8887e23",
+      "parser_version": "test-parser-0",
+      "published_at": "2026-02-10T21:05:00Z",
+      "public_available_at": "2026-02-10T21:05:00Z",
+      "availability_basis": "provider_verified",
+      "ingested_at": "2026-02-11T06:00:00Z",
+      "revises_document_id": null
+    }
+  ],
+  "spans": [
+    {
+      "span_id": "synthetic-span.revenue",
+      "document_id": "synthetic-doc.v1",
+      "start_offset": 0,
+      "end_offset": 52,
+      "exact_quote": "Fourth quarter revenue reached EUR 412.0 million. Ma",
+      "section_locator": "paragraph-1"
+    },
+    {
+      "span_id": "synthetic-span.demand",
+      "document_id": "synthetic-doc.v1",
+      "start_offset": 53,
+      "end_offset": 108,
+      "exact_quote": "agement expects demand to soften during the first half.",
+      "section_locator": "paragraph-2"
+    }
+  ],
+  "document_texts": {
+    "synthetic-doc.v1": "Fourth quarter revenue reached EUR 412.0 million. Management expects demand to soften during the first half."
+  }
+}

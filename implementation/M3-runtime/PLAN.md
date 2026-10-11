@@ -9,10 +9,11 @@ evaluation stay outside its authority.
 
 | Task | Title | Status | Depends on | Pack |
 |---|---|---|---|---|
-| M3-T01 | Runtime port, fake runtime, typed tools | TODO | G2, M2-T05, M2-T06 | [pack](tasks/M3-T01-port-and-tools.md) |
-| M3-T02 | Single-route model relay | TODO | M3-T01, M0-T04 | [pack](tasks/M3-T02-model-relay.md) |
-| M3-T03 | Hermes adapter and frozen research harness | TODO | M3-T02 | [pack](tasks/M3-T03-hermes-adapter.md) |
-| M3-T04 | Whole-worker isolation and watchdog | TODO | M3-T03 | [pack](tasks/M3-T04-isolation.md) |
+| M3-T01 | Runtime port, fake runtime, typed tools | DONE | G2, M2-T05, M2-T06 | [pack](tasks/M3-T01-port-and-tools.md) |
+| M3-T02 | Single-route model relay | DONE | M3-T01, M0-T04 | [pack](tasks/M3-T02-model-relay.md) |
+| M3-T02b | MCP tool server and stage candidate schemas (split from M3-T03) | DONE | M3-T02 | [pack](tasks/M3-T02b-mcp-server.md) |
+| M3-T03 | Hermes adapter and frozen research harness | DONE | M3-T02b | [pack](tasks/M3-T03-hermes-adapter.md) |
+| M3-T04 | Whole-worker isolation and watchdog | DONE | M3-T03 | [pack](tasks/M3-T04-isolation.md) |
 
 ## Architecture slice
 

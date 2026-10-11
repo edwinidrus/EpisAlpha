@@ -10,10 +10,10 @@ A12, A13, A19 and A20.
 
 | Task | Title | Status | Depends on | Pack |
 |---|---|---|---|---|
-| M4-T01 | Research runner and job lifecycle | TODO | G3 | [pack](tasks/M4-T01-runner.md) |
-| M4-T02 | CLI commands | TODO | M4-T01 | [pack](tasks/M4-T02-cli.md) |
-| M4-T03 | Replay and recovery semantics | TODO | M4-T02 | [pack](tasks/M4-T03-replay-recovery.md) |
-| M4-T04 | Real thesis quality review | TODO | M4-T03 | [pack](tasks/M4-T04-quality-review.md) |
+| M4-T01 | Research runner and job lifecycle | DONE | G3 | [pack](tasks/M4-T01-runner.md) |
+| M4-T02 | CLI commands | DONE | M4-T01 | [pack](tasks/M4-T02-cli.md) |
+| M4-T03 | Replay and recovery semantics | DONE | M4-T02 | [pack](tasks/M4-T03-replay-recovery.md) |
+| M4-T04 | Real thesis quality review | BLOCKED | M4-T03 | [pack](tasks/M4-T04-quality-review.md) |
 
 ## Existing interfaces this phase builds on
 
