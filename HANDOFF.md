@@ -144,10 +144,8 @@ Each step needs the owner. Each live run spends model requests.
 Builds are not bit-for-bit reproducible: record the locally built ID, review the lock diff,
 then re-run the G3 live checks before trusting it.
 
-**Pending M3-T05:** the `compose` sandbox topology and live check arrive with M3-T05,
-which reopens G3. Until then, live runs still need Linux host mode (`uv run` on the host);
-the portable-container live commands below are the intended flow after M3-T05, not a
-verified live path today.
+After pulling code changes, rebuild with `docker compose build` — the runtime image bakes the code (the live attempt A failed on a stale image).
+`research recover <run_id>` releases a run stranded in QUEUED after a crash.
 
 Set `DOCKER_GID` to the socket group on Linux (`export DOCKER_GID=$(stat -c %g
 /var/run/docker.sock)`), or to `0` on Docker Desktop (owner check still outstanding).
@@ -160,11 +158,18 @@ docker compose -f compose.yaml -f compose.live.yaml run --rm cli \
     research run --case supported --runtime hermes   # needs ingested filings, see 5.1
 ```
 
-**Verified and not verified.** Tasks 1–2 verified the portable offline stack on rootful Linux:
-fixture seed/run/export, both loopback health checks and the dev diagnose. No live Hermes
-call was made; earlier G3 live evidence is host-side. macOS Apple Silicon and Windows
-Docker Desktop build → check → up → fake run → live run, `DOCKER_GID=0` socket access and
-the arm64 Hermes build remain owner checks, not claimed passes.
+**Verified and not verified.** M3-T05 is DONE on Linux; G3 passed its A15 re-run.
+The host's four standard checks expect `632 passed, 8 deselected` (83 files formatted;
+mypy: 38 source files); Docker dev checks can have a different count, as noted in §3.
+Both topology isolation probes passed: only `relay_via_forwarder` allowed. The compose
+live run exercised the worker, relay and tool server: two stages completed, synthesizer
+failed provider-side (`SOURCE_FAILED`), 7 model requests / 4 tool calls, served_by Nvidia
+on the six successful calls, no leftover workers/forwarders. No completed live thesis in
+compose yet. The supported case abstained because real filings are not ingested (G2).
+The new trace was JSONL only (`otlp_endpoint` unset; host Phoenix port 6007), not a new
+Phoenix verification. macOS Apple Silicon and Windows Docker Desktop build → check → up
+→ fake run → live run, `DOCKER_GID=0` socket access and the arm64 Hermes build remain
+owner checks, not claimed passes.
 
 **Security notes:**
 - The socket overlay gives the app containers control of the Docker daemon, which is

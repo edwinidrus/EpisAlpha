@@ -88,6 +88,8 @@ The "Start here" section now points at M2-T01 rather than M0-T01.
 - **Owner checks outstanding:** macOS Apple Silicon and Windows Docker Desktop. Run build →
   check → up → fake run → live run, and confirm the `DOCKER_GID=0` socket access and the arm64
   Hermes build.
+- **Findings:**
+  - A runtime-assembly failure after admission (e.g. a relay bind error) strands the run in QUEUED holding the job slot; preflight catches the common causes before admission. Recover with `research recover`. Not fixed in A15.
 
 ## Repository note (not a task)
 
