@@ -1,6 +1,8 @@
 # EpisAlpha handoff
 
-**Date:** 2026-10-11 · **Stopped after:** M5-T01 (DONE) · **Next task:** M5-T02 · **Branch:** `main`
+**Date:** 2026-10-11 · **Stopped after:** M5-T03 + A15 (M0-T08, M3-T05) · **Next task:** M5-T04 · **Branch:** `a15-portable-docker` (not merged; see `docs/implementation/handover-2026-10-11.md`)
+
+> **Latest session handover:** `docs/implementation/handover-2026-10-11.md` — what was done on 2026-10-11, what is not done or not verified, owner actions, open reviews and every decision taken on the owner's behalf.
 
 This file is for whoever continues EpisAlpha on another machine, human or coding agent. It
 covers four things: where the build stands, how to bring it up anywhere with Docker, what is
@@ -17,7 +19,7 @@ kept for history).
 | 2 | `implementation/README.md` | Session protocol: one task per session; Plan → Verify → Build → Test → Diagnose. |
 | 3 | `implementation/STATUS.md` | Source of truth for task status and the next-task pointer. |
 | 4 | `implementation/CONSTITUTION.md` + the phase `CONSTITUTION.md` | Binding rules. A phase constitution can only add rules. |
-| 5 | The next task pack: `implementation/M5-browser-obsidian/tasks/M5-T02-evidence-graph.md` | The work. |
+| 5 | The next task pack: `implementation/M5-browser-obsidian/tasks/M5-T04-walkthrough.md` | The work. |
 | 6 | Plan `EpisAlpha_MVP_Milestone_Implementation_Plan.md` | Only at the sections a pack cites. Never load the blueprint by default. |
 
 Each phase folder has a `REPORT.md` (M0–M4) with what was built, verified, found and left open.
@@ -33,7 +35,7 @@ Each phase folder has a `REPORT.md` (M0–M4) with what was built, verified, fou
 | M2 Evidence | G2 **PASSED** | SQLite + object store, snapshots, point-in-time XBRL, traced connectors. The owner checkpoint (live ingestion + hand inspection) is still open. |
 | M3 Runtime | G3 **PASSED** | Pinned Hermes 0.21.3 (`c1488ac`) over MCP; model relay with stage policy; hardened worker container. Live runs proven (traces `279e56da…` local, `f8c7b412…` container). |
 | M4 Research CLI | G4 **PARTIAL** | Runner, CLI, replay, recovery done. **M4-T04 BLOCKED**: real-case reviews need the G2 checkpoint. The owner chose to continue anyway. |
-| M5 Browser + Obsidian | — | **M5-T01 DONE** (Streamlit research view). T02 evidence graph, T03 Obsidian export, T04 owner walkthrough: TODO. |
+| M5 Browser + Obsidian | — | **M5-T01–T03 DONE** (research view, evidence drilldown + graph, Obsidian export). T04 owner walkthrough: TODO. |
 | M6 Evaluation | — | Not started. |
 | M7 Acceptance | — | Not started. |
 | M8 Learning (post-v0.1) | — | Not started. Depends on G7. |
