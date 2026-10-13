@@ -293,7 +293,7 @@ def test_evidence_tab_drills_from_assertion_to_passage_and_knowledge_tab_shows_r
     at = select(app(), run_id)
     assert not at.exception, at.exception
     codes = [str(item.value) for item in at.code]
-    assert "Fourth quarter revenue reached EUR 412.0 million. Ma" in codes  # first assertion
+    assert "Fourth quarter revenue reached EUR 412.0 million." in codes  # first assertion
     assert ":gray-badge[unreviewed]" in markdown(at)
     assert "contradicted by:" in texts(at)  # A02: the critic's contradiction is visible
     table = at.dataframe[-1].value

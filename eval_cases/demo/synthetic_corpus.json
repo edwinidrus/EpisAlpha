@@ -43,16 +43,16 @@
       "span_id": "synthetic-span.revenue",
       "document_id": "synthetic-doc.v1",
       "start_offset": 0,
-      "end_offset": 52,
-      "exact_quote": "Fourth quarter revenue reached EUR 412.0 million. Ma",
+      "end_offset": 49,
+      "exact_quote": "Fourth quarter revenue reached EUR 412.0 million.",
       "section_locator": "paragraph-1"
     },
     {
       "span_id": "synthetic-span.demand",
       "document_id": "synthetic-doc.v1",
-      "start_offset": 53,
+      "start_offset": 50,
       "end_offset": 108,
-      "exact_quote": "agement expects demand to soften during the first half.",
+      "exact_quote": "Management expects demand to soften during the first half.",
       "section_locator": "paragraph-2"
     }
   ],

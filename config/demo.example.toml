@@ -121,6 +121,12 @@ project_name = "episalpha"
 sample_ratio = 1.0
 export_timeout_seconds = 5
 
+[evaluation]
+# M6 sealed labels: only the evaluator reads them, and load_labels refuses any directory inside
+# project_root or data_root. Copy the owner-reviewed label files there (see
+# eval_cases/campaigns/demo-v1/README.md), then uncomment:
+# labels_dir = "/absolute/path/outside/the/repository/episalpha-labels"
+
 [limits]
 # Plan section 3.8. Proposed engineering limits, not measured performance.
 max_active_research_jobs   = 1
@@ -134,5 +140,9 @@ max_evidence_search_hits   = 6
 max_output_repairs         = 1
 max_transport_retries      = 1         # counts toward max_model_requests
 max_graph_nodes            = 50        # browser run graph (M5-T02); at most 50
+max_contradiction_queries  = 3         # challenger's bounded contradiction search (M6-T03)
+# campaign_requests_per_day: the OWNER's free-tier capacity decision for live M6 campaigns
+# (50 on the free tier, up to 1000 with >= $10 credit). Unset: a live campaign is refused.
+# campaign_requests_per_day = 50
 # eur_cap is intentionally absent: v0.1 has no cost reservation or verified pricing, so a hard
 # EUR cap cannot be claimed (plan section 3.8) and setting it fails validation on purpose.

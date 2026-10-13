@@ -1,8 +1,8 @@
 # EpisAlpha handoff
 
-**Date:** 2026-10-11 · **Stopped after:** M5-T03 + A15 (M0-T08, M3-T05) · **Next task:** M5-T04 · **Branch:** `a15-portable-docker` (not merged; see `docs/implementation/handover-2026-10-11.md`)
+**Date:** 2026-10-13 · **Stopped after:** M7-T02 (M7-T03 BLOCKED on the owner) · **Next:** owner actions in `docs/implementation/progress.md` ("v0.1 handoff") · **Branch:** `main` (A15 merged via PR #1)
 
-> **Latest session handover:** `docs/implementation/handover-2026-10-11.md` — what was done on 2026-10-11, what is not done or not verified, owner actions, open reviews and every decision taken on the owner's behalf.
+> **Latest session handover:** `docs/implementation/handover-2026-10-12.md` (M5-T04 walkthrough, fixes, open owner checks). The 2026-10-11 handover stays the reference for A15 rulings.
 
 This file is for whoever continues EpisAlpha on another machine, human or coding agent. It
 covers four things: where the build stands, how to bring it up anywhere with Docker, what is
@@ -35,12 +35,16 @@ Each phase folder has a `REPORT.md` (M0–M4) with what was built, verified, fou
 | M2 Evidence | G2 **PASSED** | SQLite + object store, snapshots, point-in-time XBRL, traced connectors. The owner checkpoint (live ingestion + hand inspection) is still open. |
 | M3 Runtime | G3 **PASSED** | Pinned Hermes 0.21.3 (`c1488ac`) over MCP; model relay with stage policy; hardened worker container. Live runs proven (traces `279e56da…` local, `f8c7b412…` container). |
 | M4 Research CLI | G4 **PARTIAL** | Runner, CLI, replay, recovery done. **M4-T04 BLOCKED**: real-case reviews need the G2 checkpoint. The owner chose to continue anyway. |
-| M5 Browser + Obsidian | — | **M5-T01–T03 DONE** (research view, evidence drilldown + graph, Obsidian export). T04 owner walkthrough: TODO. |
-| M6 Evaluation | — | Not started. |
-| M7 Acceptance | — | Not started. |
+| M5 Browser + Obsidian | G5 **PARTIAL** | **M5-T01–T03 DONE**; **M5-T04 DONE_OFFLINE** (model-as-user browser walkthrough, 3 fixes, `demo_script.md`). Owner: Obsidian check + own click count. |
+| M6 Evaluation | G6 **PARTIAL** | Cases, sealed labels, scoring, candidates, campaign, report: DONE or DONE_OFFLINE. Live campaign BLOCKED (capacity decision, label review, 12 missing cases). |
+| M7 Acceptance | G7 **PARTIAL** | 30 acceptance tests, `scripts/demo_smoke.py`. Final live walkthrough BLOCKED on the owner. |
 | M8 Learning (post-v0.1) | — | Not started. Depends on G7. |
 
-**Last verified (2026-10-11):**
+**Last verified (2026-10-12):**
+- Host: four checks green; `diagnose: PASS | tests {'passed': 731, ...} | regressions 0`; `scripts/demo_smoke.py` PASS.
+- Container `check`: `diagnose: PASS | tests {'passed': 632, ..., 'skipped': 8}` (compose tests skip in-container).
+
+**Earlier (2026-10-11):**
 - Host: four checks green, `570 passed, 8 deselected`.
 - Inside the Docker app image (`docker compose -f compose.yaml -f compose.dev.yaml run --rm check`): `diagnose: PASS | tests
   {'passed': 570, 'failed': 0, ...} | failures 0 | regressions 0 | orphans 0 | 69.1s`.

@@ -2,11 +2,48 @@
 
 Evidence-grounded personal investment research workbench.
 
-Status (2026-10-11): milestones M0–M4 are implemented, and M5-T01 to M5-T03 are done. That
+Status (2026-10-13): milestones M0–M6 are implemented offline and M7 is in progress. That
 covers contracts, evidence storage and snapshots, the isolated Hermes runtime, the research
-runner, the CLI with replay and recovery, the browser workbench (research view, evidence
-drilldown, relation table and graph), and a one-way Obsidian export. Task
-status lives in `implementation/STATUS.md`; to set up a new machine, start with `HANDOFF.md`.
+runner, the CLI with replay and recovery, the browser workbench (research, evidence, knowledge
+and experiment views), a one-way Obsidian export, and the offline baseline-versus-challenger
+campaign. Live parts still wait on owner decisions (see `HANDOFF.md`). Task status lives in
+`implementation/STATUS.md`; to set up a new machine, start with `HANDOFF.md`.
+
+## Quick start from a clean checkout (offline, no credentials)
+
+```bash
+git clone https://github.com/edwinidrus/EpisAlpha.git && cd EpisAlpha
+uv sync --all-groups
+uv run python scripts/demo_smoke.py      # the whole demo on temporary state; ends "smoke: PASS"
+```
+
+The smoke seeds the synthetic corpus, runs the three demo cases with the fake runtime, replays
+each run with the network blocked, exports an Obsidian vault, runs the fake experiment campaign,
+then backs up and restores the database, objects and runs together with every hash verified.
+It prints where it put everything and never touches `.episalpha/` or `config/demo.toml`. Every
+run is a **[FIXTURE]**: scripted output over a synthetic issuer, not research.
+
+To use the workbench on your own data root instead:
+
+```bash
+cp config/demo.example.toml config/demo.toml
+uv run episalpha demo seed
+uv run episalpha research run --case supported --runtime fake
+uv run streamlit run apps/streamlit_app.py   # http://127.0.0.1:8501
+```
+
+The six-minute walkthrough is `docs/implementation/demo_script.md`. The experiment step needs
+`[evaluation] labels_dir` pointing outside the repository (see
+`eval_cases/campaigns/demo-v1/README.md`).
+
+**Live runs** (`--runtime hermes`) need the model credential exported, the worker image built
+(`HANDOFF.md` §4), and owner approval: the OpenRouter free tier allows 20 requests/minute and
+50/day (1,000/day with at least $10 of lifetime credit), and a research run uses up to 8.
+
+**Logs and diagnostics.** Spans go to `<data_root>/logs/spans.jsonl` (metadata only) and, when
+`[observability] otlp_endpoint` is set, to a local Phoenix on `127.0.0.1:6006`. The build's own
+health is `uv run python scripts/diagnose.py`, which writes `implementation/DIAGNOSTICS.md` and
+appends to `implementation/logs/diagnose.jsonl`.
 
 ## Docker (recommended)
 
@@ -50,7 +87,7 @@ uv run python scripts/probe_hermes.py config/demo.toml
 cp config/demo.example.toml config/demo.toml
 ```
 
-The file has five tables: `[paths]`, `[provider]`, `[demo]`, `[sources]`, and `[limits]`. Unknown
+The file has these tables: `[paths]`, `[provider]`, `[demo]`, `[sources]`, `[limits]`, `[observability]` and `[evaluation]`. Unknown
 keys are rejected, in nested tables too, so a typo fails loudly instead of being ignored.
 
 **Sources.** The source set follows the TradingAgents reference architecture across five families

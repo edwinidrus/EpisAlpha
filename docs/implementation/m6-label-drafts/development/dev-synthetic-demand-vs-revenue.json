@@ -1,0 +1,38 @@
+{
+  "schema_version": "1",
+  "case_id": "dev-synthetic-demand-vs-revenue",
+  "facts": [
+    {
+      "fact_id": "f-q4-revenue",
+      "span_ids": [
+        "synthetic-span.revenue"
+      ],
+      "value": "412000000.00",
+      "unit": "EUR"
+    },
+    {
+      "fact_id": "f-demand-softening",
+      "span_ids": [
+        "synthetic-span.demand"
+      ]
+    }
+  ],
+  "contradictions": [
+    {
+      "contradiction_id": "x-demand-vs-revenue",
+      "side_a_span_ids": [
+        "synthetic-span.demand"
+      ],
+      "side_b_span_ids": [
+        "synthetic-span.revenue"
+      ]
+    }
+  ],
+  "should_abstain": false,
+  "supporting_span_ids": [
+    "synthetic-span.revenue",
+    "synthetic-span.demand"
+  ],
+  "reviewed_by": null,
+  "reviewed_at": null
+}

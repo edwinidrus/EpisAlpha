@@ -1,0 +1,12 @@
+{
+  "parent_harness_id": "harness.baseline",
+  "hypothesis": "An explicit contradiction retrieval step improves recall without adding unsupported claims.",
+  "rationale": "Development failures: labelled contradictions were missed by the critic.",
+  "patch": [
+    {
+      "op": "add",
+      "path": "/contradiction_search",
+      "value": true
+    }
+  ]
+}

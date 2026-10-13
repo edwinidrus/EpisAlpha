@@ -246,8 +246,10 @@ class ResearchRunner:
         artifacts_root: Any,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
         lineage: Mapping[str, str] | None = None,
+        harness_config: Mapping[str, Any] | None = None,
     ) -> None:
         self.lineage = dict(lineage or {})
+        self.harness_config = dict(harness_config or {})
         self.repo = repo
         self.objects = objects
         self.settings = settings
@@ -275,6 +277,7 @@ class ResearchRunner:
         self.prompt_tokens: int | None = 0
         self.completion_tokens: int | None = 0
         self.thesis: Thesis | None = None
+        self.counter_evidence: list[str] | None = None
         self.started = time.monotonic()
 
     # --- hooks the Hermes runtime calls ---------------------------------------------------
@@ -310,6 +313,8 @@ class ResearchRunner:
                 lines.append(f"- {claim_.claim_id} ({label}; spans {spans_}): {claim_.statement}")
             for hypothesis in self.hypotheses.values():
                 lines.append(f"- {hypothesis.hypothesis_id} (hypothesis): {hypothesis.mechanism}")
+        if stage is RunState.CRITIQUING and self.harness_config.get("contradiction_search"):
+            lines.extend(self._contradiction_search())
         if stage is RunState.SYNTHESIZING and self.critique:
             lines.append(f"Critique: {json.dumps(self.critique)}")
         if self.repair_note:
@@ -318,6 +323,45 @@ class ResearchRunner:
                 f"these problems and submit again: {self.repair_note}"
             )
         return "\n".join(lines)
+
+    def _contradiction_search(self) -> list[str]:
+        """The challenger's one bounded extra step (plan 12.2): per validated claim, one host
+        retrieval over this run's frozen snapshot for passages the claim does not cite. It adds
+        candidates to the critic's brief; it removes no requirement and widens no access."""
+        if self.counter_evidence is None:
+            assert self.view is not None
+            limits = self.settings.limits
+            found: dict[str, list[str]] = {}
+            with span("tool.contradiction_search", SpanKind.RETRIEVER) as current:
+                for claim_ in list(self.claims.values())[: limits.max_contradiction_queries]:
+                    words = _terms(claim_.statement)
+                    ranked = sorted(
+                        (
+                            (len(words & _terms(item.exact_quote)), item.span_id)
+                            for item in self.view.spans.values()
+                            if item.span_id not in claim_.span_ids
+                        ),
+                        key=lambda hit: (-hit[0], hit[1]),
+                    )
+                    # Counter-evidence rarely repeats the claim's words, so unrelated passages
+                    # stay eligible; overlap only orders them.
+                    found[claim_.claim_id] = [span_id for _, span_id in ranked][
+                        : limits.max_evidence_search_hits
+                    ]
+                annotate(
+                    current,
+                    **{
+                        "episalpha.queries": len(found),
+                        "episalpha.hits": sum(len(hits) for hits in found.values()),
+                    },
+                )
+            self.artifacts.write("contradiction_search", found)
+            self.counter_evidence = ["Contradiction search (host retrieval over this snapshot):"]
+            for claim_id, hits in found.items():
+                for span_id in hits:
+                    quote = self.view.spans[span_id].exact_quote
+                    self.counter_evidence.append(f"- against {claim_id}: {span_id}: {quote}")
+        return self.counter_evidence
 
     # --- the run ---------------------------------------------------------------------------
 
@@ -953,6 +997,15 @@ class ResearchRunner:
         self.record = RunRecord.model_validate(data)
         with transaction(self.repo.connection):
             self.repo.update_run(self.record)
+
+
+def _terms(text: str) -> set[str]:
+    # ponytail: word overlap, deterministic and bounded; swap for FTS ranking if it misses too much.
+    return {
+        word
+        for word in "".join(c if c.isalnum() else " " for c in text.lower()).split()
+        if len(word) > 3
+    }
 
 
 def _add(total: int | None, value: int | None) -> int | None:

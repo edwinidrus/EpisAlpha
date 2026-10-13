@@ -22,6 +22,8 @@ from episalpha.contracts.research import (
     RunRecord,
     RuntimeMode,
 )
+from episalpha.evaluation.reporting import build_report, render_markdown
+from episalpha.evolution import campaign as campaigns
 from episalpha.knowledge.export_obsidian import export_run
 from episalpha.observability import SpanKind, configure_tracing, shutdown_tracing, span, trace_url
 from episalpha.research import services
@@ -44,6 +46,10 @@ app.add_typer(demo_app, name="demo")
 export_app = typer.Typer(add_completion=False, no_args_is_help=True, help="Derived exports.")
 app.add_typer(research_app, name="research")
 app.add_typer(export_app, name="export")
+experiment_app = typer.Typer(
+    add_completion=False, no_args_is_help=True, help="Baseline-versus-challenger campaigns (M6)."
+)
+app.add_typer(experiment_app, name="experiment")
 
 
 def _now() -> datetime:
@@ -316,6 +322,51 @@ def export_obsidian(
         typer.echo(f"edited, left untouched: generated/{name}")
     workbench.close()
     shutdown_tracing()
+
+
+@experiment_app.command("compare")
+def experiment_compare(
+    context: typer.Context,
+    campaign: Annotated[str, typer.Option("--campaign", help="Campaign name, e.g. demo-v1.")],
+    runtime: Annotated[str, typer.Option("--runtime", help="fake or hermes.")] = "fake",
+) -> None:
+    """Run or resume one baseline-versus-challenger campaign.
+
+    The manifest is frozen before any trial; every trial goes to the campaign ledger; the
+    baseline is never replaced automatically. Exit 0 when decided (either way), 5 when paused
+    at the daily request cap (re-run to resume), 2 when refused.
+    """
+    workbench = _workbench(context)
+    try:
+        mode = RuntimeMode(runtime)
+        result = campaigns.compare(workbench, campaign, mode, now=_now)
+    except ValueError:
+        workbench.close()
+        _fail(f"unknown runtime {runtime!r}; choose fake or hermes")
+        return
+    except EpisAlphaError as error:
+        workbench.close()
+        _fail(str(error))
+        return
+    if mode is RuntimeMode.FAKE:
+        typer.echo("[FIXTURE] fake runtime: scripted fixture output, not research")
+    typer.echo(f"campaign: {campaign} -> {result.campaign_id} ({mode.value})")
+    typer.echo(f"status: {result.status}")
+    if result.candidate_id:
+        typer.echo(f"candidate: {result.candidate_id}")
+    for gate in result.gates:
+        typer.echo(
+            f"gate {gate['gate']}: {'PASS' if gate['passed'] else 'FAIL'} ({gate['detail']})"
+        )
+    if result.decision:
+        typer.echo(f"decision: {result.decision} (the baseline stays active; promotion is yours)")
+    report = result.directory / "report.md"
+    report.write_text(render_markdown(build_report(result.directory)))
+    typer.echo(f"ledger: {result.directory / 'ledger.jsonl'}")
+    typer.echo(f"report: {report}")
+    workbench.close()
+    shutdown_tracing()
+    raise typer.Exit(0 if result.status == "decided" else 5)
 
 
 if __name__ == "__main__":  # the browser launches workers as ``python -m episalpha.cli``

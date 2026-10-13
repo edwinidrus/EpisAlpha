@@ -1,6 +1,6 @@
 # Status rollup
 
-Execution order runs top to bottom. **Next task: `M5-T04`.** Detail, real command output and
+Execution order runs top to bottom. **Next: owner actions** (see `docs/implementation/handover-2026-10-12.md`): G5 manual checks, M6 labels/cases/capacity, then the live M7-T03 walkthrough. All buildable v0.1 tasks are done or DONE_OFFLINE. Built past G5 PARTIAL on the owner's 2026-10-12 "full auto" instruction; owner checks for G5 and M6 labels stay open. Detail, real command output and
 blockers live in each phase's `PROGRESS.md`. Update both files when a task changes state.
 
 | # | Task | Title | Status | Depends on | Pack |
@@ -38,14 +38,14 @@ blockers live in each phase's `PROGRESS.md`. Update both files when a task chang
 | 30 | M5-T03 | Deterministic Obsidian exporter | DONE | M5-T02 | [pack](M5-browser-obsidian/tasks/M5-T03-obsidian-export.md) |
 | 30a | M0-T08 | Portable offline Docker stack (A15) | DONE | M5-T03 | [pack](M0-foundation/tasks/M0-T08-portable-docker.md) |
 | 30b | **M3-T05** | Compose sandbox topology (A15) | **DONE** | M0-T08 | [pack](M3-runtime/tasks/M3-T05-compose-topology.md) |
-| 31 | M5-T04 | Browser walkthrough and usability correction | TODO | M5-T03 | [pack](M5-browser-obsidian/tasks/M5-T04-walkthrough.md) |
-| 32 | M6-T01 | Labeled cases and deterministic metrics | TODO | G5 | [pack](M6-evaluation/tasks/M6-T01-cases-metrics.md) |
-| 33 | M6-T02 | Candidate validation and lineage | TODO | M6-T01 | [pack](M6-evaluation/tasks/M6-T02-candidates.md) |
-| 34 | M6-T03 | Offline campaign runner | TODO | M6-T02 | [pack](M6-evaluation/tasks/M6-T03-campaign.md) |
-| 35 | M6-T04 | Experiment report and browser comparison | TODO | M6-T03 | [pack](M6-evaluation/tasks/M6-T04-report.md) |
-| 36 | M7-T01 | Cross-boundary acceptance suite | TODO | G6 | [pack](M7-acceptance/tasks/M7-T01-acceptance-suite.md) |
-| 37 | M7-T02 | Demo packaging and smoke command | TODO | M7-T01 | [pack](M7-acceptance/tasks/M7-T02-smoke.md) |
-| 38 | M7-T03 | Final owner walkthrough | TODO | M7-T02 | [pack](M7-acceptance/tasks/M7-T03-walkthrough.md) |
+| 31 | M5-T04 | Browser walkthrough and usability correction | DONE_OFFLINE | M5-T03 | [pack](M5-browser-obsidian/tasks/M5-T04-walkthrough.md) |
+| 32 | M6-T01 | Labeled cases and deterministic metrics | DONE_OFFLINE | G5 | [pack](M6-evaluation/tasks/M6-T01-cases-metrics.md) |
+| 33 | M6-T02 | Candidate validation and lineage | DONE | M6-T01 | [pack](M6-evaluation/tasks/M6-T02-candidates.md) |
+| 34 | M6-T03 | Offline campaign runner | DONE_OFFLINE | M6-T02 | [pack](M6-evaluation/tasks/M6-T03-campaign.md) |
+| 35 | M6-T04 | Experiment report and browser comparison | DONE_OFFLINE | M6-T03 | [pack](M6-evaluation/tasks/M6-T04-report.md) |
+| 36 | M7-T01 | Cross-boundary acceptance suite | DONE | G6 | [pack](M7-acceptance/tasks/M7-T01-acceptance-suite.md) |
+| 37 | M7-T02 | Demo packaging and smoke command | DONE | M7-T01 | [pack](M7-acceptance/tasks/M7-T02-smoke.md) |
+| 38 | M7-T03 | Final owner walkthrough | BLOCKED | M7-T02 | [pack](M7-acceptance/tasks/M7-T03-walkthrough.md) |
 | 39 | M8-T01 | Skill library and ledger (A13, post-v0.1) | TODO | G7 | [pack](M8-learning/tasks/M8-T01-skill-library.md) |
 | 40 | M8-T02 | Harvest and deterministic screening (A13) | TODO | M8-T01 | [pack](M8-learning/tasks/M8-T02-screening.md) |
 | 41 | M8-T03 | Offline paired skill evaluation (A13) | TODO | M8-T02 | [pack](M8-learning/tasks/M8-T03-evaluation.md) |
@@ -61,7 +61,9 @@ blockers live in each phase's `PROGRESS.md`. Update both files when a task chang
 | G2 | **PASSED 2026-10-10** (re-run after A8/A11/A14) · owner checkpoint (live ingestion + hand inspection) outstanding | [M2 GATE](M2-evidence/GATE.md) |
 | G3 | **PASSED 2026-10-11 (re-run after A15)** · owner TODOs: rootless Docker / userns-remap; macOS/Windows checks | [M3 GATE](M3-runtime/GATE.md) |
 | G4 | **PARTIAL 2026-10-11**: offline passed; real-case reviews BLOCKED on the G2 owner checkpoint | [M4 GATE](M4-research-cli/GATE.md) |
-| G5–G7 | Not started | phase `GATE.md` files |
+| G5 | **PARTIAL 2026-10-12**: automated criteria passed; manual owner checks (click count, Obsidian) open | [M5 GATE](M5-browser-obsidian/GATE.md) |
+| G6 | **PARTIAL 2026-10-13**: fake campaign machinery passes; live campaign BLOCKED (capacity decision, label review, missing cases) | [M6 GATE](M6-evaluation/GATE.md) |
+| G7 | **PARTIAL 2026-10-13**: automated criteria pass; owner walkthrough with live calls BLOCKED | [M7 GATE](M7-acceptance/GATE.md) |
 | G8 | Not started (post-v0.1 learning loop, A13) | [M8 GATE](M8-learning/GATE.md) |
 
 A reopened gate is re-run, with real output recorded, once its new tasks are DONE. Earlier

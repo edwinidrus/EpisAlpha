@@ -23,6 +23,7 @@ repository notes.
 | Unattended overnight build (2026-10-10/11) | **APPROVED 2026-10-10 ~22:30 UTC** | Owner asked for the whole implementation to be built unattended, complying with the constitutions and gates, with one Markdown report per phase. Approved for that session: (1) up to **40 live model requests** on the OpenRouter route (M3/M4 live checks; public SEC excerpts may be sent); (2) pulling and running **digest-pinned Docker images** (Phoenix, Hermes) bound to 127.0.0.1 or an internal network; (3) M3-T04 hardens the **current rootful Docker** (rootless/userns-remap stays an owner TODO, G3 isolation item partial); (4) **public data GETs** from SEC EDGAR and Alpha Vantage within their rate limits. Owner-only items (walkthroughs, G2 inspection checkpoint, M6 capacity decision) stay open. |
 | Proceed past G4 PARTIAL (2026-10-11) | **DECIDED 2026-10-11 ~07:15 UTC** | After the M4 report, the owner committed manually and said "please proceed the further milestones". M5-T01 was built on G4's offline pass; the M4-T04 real-case reviews stay BLOCKED on the G2 checkpoint. |
 | Move to another environment (2026-10-11) | **DECIDED 2026-10-11 ~07:40 UTC** | Owner: "please stop, and please make Handoff MD and orchestration all with docker, and please make commit then push to github". Development stopped after M5-T01; `HANDOFF.md`, `Dockerfile`, `compose.yaml`, `compose.live.yaml` and `scripts/setup_worker.py` added; commit and push to `origin` authorised by that message. |
+| Proceed past G5 PARTIAL, unattended (2026-10-12) | **DECIDED 2026-10-12 ~20:40 UTC** | Owner: "please make it full auto and running over the night, so i can sleep … make a git pull". Read as: continue the milestones past G5's open manual checks, as with G4. Limits the session keeps because the message does not lift them: **no live model requests** (none approved for this session), **no commits or pushes**, owner-only checkpoints (G5 Obsidian check, M6 label review, M6 capacity decision) stay open and tasks needing them stop at DONE_OFFLINE. |
 | Optional EUR spending limit | BLOCKED, not configurable | v0.1 has no cost reservation or verified pricing, so `limits.eur_cap` is rejected at load on purpose (plan section 3.8; acceptance row A22). |
 
 ## Findings that change later milestones
@@ -90,6 +91,12 @@ The "Start here" section now points at M2-T01 rather than M0-T01.
   Hermes build.
 - **Findings:**
   - A runtime-assembly failure after admission (e.g. a relay bind error) strands the run in QUEUED holding the job slot; preflight catches the common causes before admission. Recover with `research recover`. Not fixed in A15.
+  - **Fixed 2026-10-12** (deferred minors from the A15 reviews, each verified; red test first where code changed):
+    - Preflight's Docker queries had no timeout, and preflight runs on the submit path: a hung Docker daemon froze the UI submit. Preflight now uses `sandbox._probe` (15 s, then refused as "engine unreachable"); `_docker` stays unbounded because it also runs `docker build` and `docker stop` (a first attempt put the timeout on `_docker` and would have killed image builds; caught in self-review). Tests: `test_a_hung_docker_engine_is_refused_not_waited_on`, `test_builds_and_stops_are_not_cut_short_by_the_probe_timeout`.
+    - `scripts/diagnose.py` compared each run with the previous line from *any* environment. The container skips the 8 compose-config tests, so the documented `docker compose … run --rm check` reported `FAIL … regressions 1` (`passed 637 -> 630`) after any host run. Lines now carry `environment` (`host`/`container`; untagged = host) and compare like with like (`test_the_baseline_is_the_last_line_from_the_same_environment`). Container and host both PASS afterwards.
+    - `compose.dev.yaml` `check`: `cap_drop: [ALL]`, `no-new-privileges`; verified by a full container `check` run.
+    - `.gitattributes`: `*.sql text eol=lf` (the two migrations).
+  - **Fixed 2026-10-12, CI:** the starter `Pylint` workflow (added on GitHub 2026-10-11) ran on Python 3.8–3.10 and could not parse this 3.12 code (`E0001 … invalid syntax`, reproduced locally); it failed on every push. Replaced by `.github/workflows/checks.yml`: the four standard checks with uv 0.11.6 and Python 3.12, no secrets. Verified on a clean copy of the tracked files (no `.env`, no `.episalpha`): four checks green, `637 passed`. Not yet seen running on GitHub (needs a push).
 
 ## Repository note (not a task)
 
@@ -97,3 +104,29 @@ The "Start here" section now points at M2-T01 rather than M0-T01.
 `8b7b4c6` and is **not** matched by the `.gitignore` pattern `*.Zone.Identifier`, because the
 filename separator is `:` rather than `.`. **Resolved 2026-10-10:** file untracked with
 `git rm --cached` (local copy kept) and the pattern changed to `*Zone.Identifier`.
+
+## v0.1 handoff (M7-T03, 2026-10-13)
+
+**State.** Every buildable v0.1 task is DONE or DONE_OFFLINE; M4-T04 and M7-T03 are BLOCKED on
+the owner. Gates: G0–G3 PASSED; G4, G5, G6, G7 PARTIAL (offline criteria pass; owner and live
+parts open). Default suite 731 passed, offline, no credentials; `scripts/demo_smoke.py` passes
+from a clean copy in 4.7 s. Evidence: `docs/implementation/demo_acceptance.md`, each phase
+`GATE.md`, `implementation/DIAGNOSTICS.md`, `implementation/logs/diagnose.jsonl` (40 full runs,
+324 -> 731 tests).
+
+**Owner actions that unblock the rest, in order.**
+1. G5: open the exported vault in Obsidian; count your own clicks from an assertion to its passage.
+2. G2 checkpoint: live ingestion of the three cases' filings plus hand inspection (unblocks
+   M4-T04 and real evidence for M6).
+3. M6: review and sign the development label drafts; author 8 more development, 6 validation and
+   6 final-check cases with their sealed labels; decide free-tier capacity
+   (`limits.campaign_requests_per_day`); approve the live campaign's requests.
+4. M7-T03: be present for the live walkthrough (real run, live campaign report, intentional
+   source and model failures, browser refresh).
+
+**Next eligible work after v0.1 — named, not started (M7 article 6).**
+1. Forward forecast logging.
+2. The optional paper/evaluation lab.
+3. The A8 follow-ons in plan section 15.3: event-window reaction, factor baselines, Deflated
+   Sharpe and PBO.
+4. M8 learning loop (post-v0.1, after G7).

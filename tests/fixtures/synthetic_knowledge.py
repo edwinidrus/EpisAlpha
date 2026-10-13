@@ -64,17 +64,17 @@ REVENUE_SPAN = EvidenceSpan(
     span_id="synthetic-span.revenue",
     document_id="synthetic-doc.v1",
     start_offset=0,
-    end_offset=52,
-    exact_quote=DOCUMENT_TEXT[0:52],
+    end_offset=49,
+    exact_quote=DOCUMENT_TEXT[0:49],
     section_locator="paragraph-1",
 )
 
 DEMAND_SPAN = EvidenceSpan(
     span_id="synthetic-span.demand",
     document_id="synthetic-doc.v1",
-    start_offset=53,
+    start_offset=50,
     end_offset=DOCUMENT_TEXT.index("half.") + len("half."),
-    exact_quote=DOCUMENT_TEXT[53:],
+    exact_quote=DOCUMENT_TEXT[50:],
     section_locator="paragraph-2",
 )
 

@@ -1,6 +1,6 @@
 # Gate G7: demo acceptance
 
-**Status:** not started.
+**Status:** PARTIAL (2026-10-13): every automated criterion passes offline; the final owner walkthrough with live calls (M7-T03) is BLOCKED on the owner.
 
 ## Commands
 
@@ -34,4 +34,28 @@ unavailable; offline success is reported separately.
 
 ## Results log (append-only; real output only)
 
-_No runs yet._
+### 2026-10-13 — automated part (claude-opus-5-5)
+
+Machine: WSL2 2.4.13.0, kernel 5.15.167.4-microsoft-standard-WSL2, x86_64; Python 3.12.3;
+Streamlit 1.65.0, Pydantic 2.13.5, Typer 0.27.2; Hermes pin `c1488ac` (0.21.3); research
+model route `nvidia/nemotron-3-ultra-550b-a55b:free` (config only; no live call this session).
+
+- Four checks: `ruff check` all passed; `ruff format --check` 98 files formatted; `mypy
+  src/episalpha` no issues in 45 files; `pytest -m "not live"` 731 passed.
+- `uv run python scripts/demo_smoke.py` -> `smoke: PASS` (replay after warm-up 0.30 s, total
+  4.7 s); clean-copy rehearsal -> `smoke: PASS` (0.28 s, 4.7 s).
+- `uv run python scripts/diagnose.py` -> `PASS | tests {'passed': 731, ...} | failures 0 |
+  regressions 0 | orphans 0`.
+- Live commands (`pytest -m live tests/integration/test_hermes_runtime.py
+  tests/integration/test_runtime_boundary.py`): **not run**: no owner approval for live calls in
+  this session. BLOCKED, not skipped-as-pass.
+
+| Criterion | Result |
+|---|---|
+| A01–A29 + A32: test, manual check or BLOCKED | PASS: 30 automated (`test_demo_acceptance.py`); manual/live parts listed in `docs/implementation/demo_acceptance.md` |
+| Smoke from a clean checkout; replay with no network | PASS (clean-copy rehearsal; a literal `git clone` needs the work committed) |
+| Backup and restore across DB, objects, runs, hashes verified | PASS (smoke steps backup/restore, replay from the restored copy) |
+| Final walkthrough with a real-provider run and intentional failures | **BLOCKED**: owner not present, no live approval. Offline equivalents pass: source failure A04, relay refusing a bad token (`test_model_relay.py`), egress A27 |
+| All G0–G7 outcomes recorded; plan 15.1 ticked or open | Recorded in `docs/implementation/demo_acceptance.md` (one item open: the live challenger campaign) |
+| Final `DIAGNOSTICS.md` and `diagnose.jsonl` trend in the handoff | PASS: 40 full diagnose runs from 324 tests (2026-10-10) to 731 (2026-10-13); 2 regression flags and 3 FAIL verdicts in the trend, each explained in its journal |
+

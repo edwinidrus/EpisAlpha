@@ -8,7 +8,7 @@ One command gives a white-box health picture of the build::
 
 It rewrites ``implementation/DIAGNOSTICS.md``, appends one JSON line to
 ``implementation/logs/diagnose.jsonl`` and exits non-zero when a check fails or anything
-regressed against the previous line.
+regressed against the previous line from the same environment (host or container).
 
 It reads and runs checks only. It never edits source or tests (M0 constitution article 7), never
 imports ``episalpha`` (it must work when the package is broken) and never reads ``.env``.
@@ -311,10 +311,17 @@ def traceability(root: Path) -> dict[str, list[str]]:
     }
 
 
-def _previous(history: Path, want_checks: bool) -> dict[str, Any] | None:
+def environment() -> str:
+    """``container`` inside Docker (compose-config tests skip there), else ``host``."""
+    return "container" if Path("/.dockerenv").exists() else "host"
+
+
+def _previous(history: Path, want_checks: bool, environment: str) -> dict[str, Any] | None:
+    """The last line from the same environment. Lines older than the field are host lines."""
     if not history.exists():
         return None
     lines = [json.loads(line) for line in history.read_text().splitlines() if line.strip()]
+    lines = [line for line in lines if line.get("environment", "host") == environment]
     candidates = [line for line in lines if line.get("checks")] if want_checks else lines
     return candidates[-1] if candidates else None
 
@@ -331,11 +338,14 @@ def main() -> int:
         "git_head": _run("git", "rev-parse", "--short", "HEAD").stdout.strip(),
         "dirty": bool(_run("git", "status", "--porcelain").stdout.strip()),
         "mode": "no-run" if arguments.no_run else "full",
+        "environment": environment(),
         "checks": checks,
         "tests": tests,
         "traceability": traceability(REPO_ROOT),
     }
-    report["regressions"] = regressions(_previous(HISTORY, bool(checks)), report)
+    report["regressions"] = regressions(
+        _previous(HISTORY, bool(checks), report["environment"]), report
+    )
     report["elapsed_seconds"] = round(time.monotonic() - started, 1)
 
     DIAGNOSTICS_MD.write_text(render_markdown(report))

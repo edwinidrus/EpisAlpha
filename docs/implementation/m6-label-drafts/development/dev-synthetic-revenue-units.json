@@ -1,0 +1,20 @@
+{
+  "schema_version": "1",
+  "case_id": "dev-synthetic-revenue-units",
+  "facts": [
+    {
+      "fact_id": "f-q4-revenue",
+      "span_ids": [
+        "synthetic-span.revenue"
+      ],
+      "value": "412000000.00",
+      "unit": "EUR"
+    }
+  ],
+  "should_abstain": false,
+  "supporting_span_ids": [
+    "synthetic-span.revenue"
+  ],
+  "reviewed_by": null,
+  "reviewed_at": null
+}

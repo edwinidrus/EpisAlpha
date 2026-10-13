@@ -1,0 +1,7 @@
+{
+  "schema_version": "1",
+  "case_id": "dev-synthetic-order-book",
+  "should_abstain": true,
+  "reviewed_by": null,
+  "reviewed_at": null
+}

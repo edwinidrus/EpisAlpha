@@ -216,3 +216,22 @@ def test_render_markdown_sections_in_order(diagnose: ModuleType) -> None:
     ]
     assert "FAIL" in text
     assert "abc1234" in text
+
+
+def test_the_baseline_is_the_last_line_from_the_same_environment(
+    diagnose: ModuleType, tmp_path: Path
+) -> None:
+    # The container skips the compose-config tests, so a host line followed by a container line
+    # looked like "passed 637 -> 630": the documented `check` failed after any host run.
+    history = tmp_path / "diagnose.jsonl"
+    lines = [
+        {**report(passed=630), "environment": "container"},
+        report(passed=637),  # written before lines carried an environment: the host
+        {**report(passed=1), "checks": {}},  # a --no-run line
+    ]
+    history.write_text("".join(json.dumps(line) + "\n" for line in lines))
+    host = diagnose._previous(history, True, "host")
+    container = diagnose._previous(history, True, "container")
+    assert host is not None and host["checks"]["pytest"]["passed"] == 637
+    assert container is not None and container["checks"]["pytest"]["passed"] == 630
+    assert diagnose._previous(history, False, "host")["checks"] == {}

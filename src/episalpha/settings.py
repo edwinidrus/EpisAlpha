@@ -289,6 +289,11 @@ class Limits(_Base):
     """``propose_skill`` calls allowed per run (amendment A13)."""
     max_skill_proposal_bytes: int = Field(default=4096, ge=256, le=65_536)
     max_graph_nodes: int = Field(default=50, ge=1, le=50)
+    max_contradiction_queries: int = Field(default=3, ge=1, le=16)
+    """Claims the bounded ``contradiction_search`` step looks up (plan 12.2), one query each."""
+    campaign_requests_per_day: int | None = Field(default=None, ge=1, le=1000)
+    """The owner's free-tier capacity decision for M6 campaigns (A9). ``None``: undecided, so a
+    live campaign is refused; a fake campaign is uncapped."""
     """Nodes in the browser's run-scoped graph (M5-T02); the M5 constitution caps it at 50."""
     eur_cap: DecimalString | None = None
 
@@ -318,6 +323,20 @@ class Limits(_Base):
                 "until M3-T02."
             )
         return self
+
+
+class EvaluationConfig(_Base):
+    """M6 evaluator inputs. Labels are sealed: only the evaluator reads them (M6 article 2)."""
+
+    labels_dir: Path | None = None
+    """Absolute, and outside both ``project_root`` and ``data_root``; checked when loaded."""
+
+    @field_validator("labels_dir")
+    @classmethod
+    def _must_be_absolute(cls, value: Path | None) -> Path | None:
+        if value is not None and not value.is_absolute():
+            raise ValueError(f"{value} must be absolute: labels never live under the project")
+        return value
 
 
 class ObservabilityConfig(_Base):
@@ -358,6 +377,7 @@ class Settings(_Base):
     sources: SourcesConfig = SourcesConfig()
     limits: Limits = Limits()
     observability: ObservabilityConfig = ObservabilityConfig()
+    evaluation: EvaluationConfig = EvaluationConfig()
 
     @property
     def unresolved_owner_inputs(self) -> tuple[str, ...]:

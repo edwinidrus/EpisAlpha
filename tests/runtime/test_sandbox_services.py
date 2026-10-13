@@ -35,7 +35,7 @@ def test_compose_without_the_socket_is_refused_before_admission(
     monkeypatch.setattr(services.shutil, "which", lambda name: "/usr/local/bin/docker")
     monkeypatch.setattr(
         sandbox,
-        "_docker",
+        "_probe",
         lambda argv: __import__("subprocess").CompletedProcess(list(argv), 1, "", "no socket"),
     )
     with pytest.raises(EpisAlphaError, match="compose.live.yaml"):
@@ -56,3 +56,37 @@ def test_an_unknown_topology_is_refused_cleanly(
 def test_the_lock_names_a_worker_image() -> None:
     lock = json.loads((REPO / "config" / "runtime.lock.json").read_text())
     assert lock["hermes"]["worker_image"]["id"].startswith("sha256:")
+
+
+def test_a_hung_docker_engine_is_refused_not_waited_on(
+    workbench: services.Workbench, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Preflight runs on the submit path: a daemon that never answers must not freeze the UI.
+    import subprocess
+
+    def hang(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert kwargs.get("timeout"), "every Docker probe needs a timeout"
+        raise subprocess.TimeoutExpired(argv, kwargs["timeout"])  # type: ignore[arg-type]
+
+    monkeypatch.setenv("EPISALPHA_SANDBOX_TOPOLOGY", "compose")
+    monkeypatch.setattr(services.shutil, "which", lambda name: "/usr/local/bin/docker")
+    monkeypatch.setattr(sandbox.subprocess, "run", hang)
+    with pytest.raises(EpisAlphaError, match="unreachable"):
+        services._hermes_readiness(workbench)
+    workbench.close()
+
+
+def test_builds_and_stops_are_not_cut_short_by_the_probe_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import subprocess
+
+    seen: dict[str, object] = {}
+
+    def record(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        seen.update(kwargs)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(sandbox.subprocess, "run", record)
+    sandbox._docker(["docker", "build", "-t", "episalpha-worker:local", "."])
+    assert "timeout" not in seen  # an image build takes minutes

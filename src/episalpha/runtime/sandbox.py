@@ -68,6 +68,21 @@ def _docker(arguments: Sequence[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(list(arguments), capture_output=True, text=True, check=False)
 
 
+PROBE_SECONDS = 15
+"""ponytail: an operational probe timeout like the 30 s stop wait below, not a research budget."""
+
+
+def _probe(arguments: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    """A quick Docker query for :func:`preflight`, which runs on the submit path: a daemon that
+    never answers reads as a failed call, not a hang. Builds and stops keep :func:`_docker`."""
+    try:
+        return subprocess.run(
+            list(arguments), capture_output=True, text=True, check=False, timeout=PROBE_SECONDS
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(list(arguments), 124, "", "no answer in time")
+
+
 def _spawn(arguments: Sequence[str]) -> subprocess.Popen[bytes]:
     return subprocess.Popen(
         list(arguments),
@@ -144,7 +159,7 @@ def _mount(config: SandboxConfig, source: Path, target: str, *, readonly: bool) 
     return f"type=volume,src={COMPOSE_STAGE_VOLUME},dst={target},volume-subpath={sub_path}{suffix}"
 
 
-def preflight(config: SandboxConfig, runner: Runner = _docker) -> str | None:
+def preflight(config: SandboxConfig, runner: Runner = _probe) -> str | None:
     """Why the compose topology cannot run a worker here, or ``None``. Host topology: ``None``."""
     if config.topology != "compose":
         return None

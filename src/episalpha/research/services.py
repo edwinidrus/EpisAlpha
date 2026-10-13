@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -126,6 +127,21 @@ class Workbench:
     @property
     def runs_dir(self) -> Path:
         return self.data_root / "runs"
+
+    @property
+    def candidates_dir(self) -> Path:
+        return self.data_root / "candidates"
+
+    def harness_root(self, harness_id: str) -> Path:
+        """``harness.baseline`` is the repository's; ``harness.cand-*`` a materialized candidate."""
+        name = harness_id.removeprefix("harness.")
+        if harness_id == HARNESS_ID:
+            return self.project_root / "harnesses" / "baseline"
+        if re.fullmatch(r"cand-[0-9a-f]{16}", name):
+            root = self.candidates_dir / name
+            if (root / "config.json").is_file():
+                return root
+        raise _refuse(f"unknown harness {harness_id!r}")
 
     def close(self) -> None:
         self.repo.connection.close()
@@ -336,6 +352,7 @@ def new_request(
     research_mode: ResearchMode,
     runtime_mode: RuntimeMode,
     now: datetime,
+    harness_id: str = HARNESS_ID,
 ) -> RunRequest:
     """A request whose idempotency key covers what it asks, so a resubmission finds its run."""
     limits = workbench.settings.limits
@@ -346,7 +363,7 @@ def new_request(
             question,
             research_cutoff.isoformat(),
             runtime_mode.value,
-            HARNESS_ID,
+            harness_id,
         ]
     )
     return RunRequest(
@@ -357,7 +374,7 @@ def new_request(
         research_cutoff=research_cutoff,
         research_mode=research_mode,
         runtime_mode=runtime_mode,
-        harness_id=HARNESS_ID,
+        harness_id=harness_id,
         budgets=Budgets(
             run_wall_time_seconds=limits.run_wall_time_seconds,
             max_model_requests=limits.max_model_requests,
@@ -523,7 +540,7 @@ def execute(
         return record
     plan = submission_plan(workbench, run_id)
     claim(workbench.repo, run_id, worker_id, now=now())
-    runner = _runner(workbench, plan, now)
+    runner = _runner(workbench, record, plan, now)
     runtime, cleanup = _runtime_for(workbench, record, runner, plan)
     try:
         return runner.execute(run_id, runtime)
@@ -532,9 +549,10 @@ def execute(
 
 
 def _runner(
-    workbench: Workbench, plan: dict[str, Any], now: Callable[[], datetime]
+    workbench: Workbench, record: RunRecord, plan: dict[str, Any], now: Callable[[], datetime]
 ) -> ResearchRunner:
     lineage = {"prior_run_id": plan["prior_run_id"]} if plan.get("prior_run_id") else None
+    harness = workbench.harness_root(record.request.harness_id) / "config.json"
     return ResearchRunner(
         workbench.repo,
         workbench.objects,
@@ -543,6 +561,7 @@ def _runner(
         artifacts_root=workbench.runs_dir,
         now=now,
         lineage=lineage,
+        harness_config=json.loads(harness.read_text()),
     )
 
 
@@ -554,7 +573,7 @@ def recover_run(
     if record is None:
         raise _refuse(f"run {run_id!r} does not exist")
     plan = submission_plan(workbench, run_id)
-    runner = _runner(workbench, plan, now)
+    runner = _runner(workbench, record, plan, now)
     runtime, cleanup = _runtime_for(workbench, record, runner, plan)
     try:
         return recover(workbench.repo, runner, run_id, runtime, worker_id=worker_id, now=now())
@@ -581,7 +600,7 @@ def _runtime_for(
     if record.request.runtime_mode is RuntimeMode.FAKE:
         scenario = Scenario(os.environ.get("EPISALPHA_FAKE_SCENARIO") or plan["fake_scenario"])
         return FakeRuntime(workbench.objects, scenario), lambda: None
-    return _hermes_runtime(workbench, runner)
+    return _hermes_runtime(workbench, record, runner)
 
 
 def _hermes_readiness(workbench: Workbench) -> tuple[dict[str, Any], str | None]:
@@ -604,14 +623,14 @@ def _hermes_readiness(workbench: Workbench) -> tuple[dict[str, Any], str | None]
         config = sandbox.sandbox_config(str(image), os.environ)
     except ValueError as error:
         raise _refuse(f"no isolated worker available: {error}") from None
-    problem = sandbox.preflight(config, sandbox._docker)
+    problem = sandbox.preflight(config, sandbox._probe)
     if problem is not None:
         raise _refuse(f"no isolated worker available: {problem}")
     return lock, str(image)
 
 
 def _hermes_runtime(
-    workbench: Workbench, runner: ResearchRunner
+    workbench: Workbench, record: RunRecord, runner: ResearchRunner
 ) -> tuple[ResearchRuntimePort, Callable[[], None]]:
     # Imported here: the fake path needs none of the Hermes machinery.
     from episalpha.runtime.hermes import HermesRuntime, LocalLauncher, WorkerLauncher, load_harness
@@ -653,7 +672,7 @@ def _hermes_runtime(
     server = RelayServer(relay, host=launcher.bind_host, port=0)
     server.start()
     runtime = HermesRuntime(
-        harness=load_harness(workbench.project_root / "harnesses" / "baseline"),
+        harness=load_harness(workbench.harness_root(record.request.harness_id)),
         relay=relay,
         relay_port=server.port,
         relay_token=token,

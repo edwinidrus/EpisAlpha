@@ -1,0 +1,12 @@
+{
+  "schema_version": "1",
+  "partition": "development",
+  "family_id": "synthetic-release-family",
+  "instrument_id": "synthetic-issuer.eq",
+  "snapshot_ref": "synthetic",
+  "research_cutoff": "2026-09-10T00:00:00+00:00",
+  "research_mode": "historical_reconstruction",
+  "case_id": "dev-synthetic-demand-vs-revenue",
+  "case_type": "contradiction",
+  "question": "Does the issuer's demand outlook conflict with its reported revenue?"
+}

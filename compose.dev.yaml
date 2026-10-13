@@ -27,6 +27,8 @@ services:
     profiles: [tools]
     working_dir: /app
     network_mode: none            # the default suite is offline by contract
+    cap_drop: [ALL]               # a non-root test run needs no capabilities
+    security_opt: ["no-new-privileges:true"]
     volumes:
       - .:/app
     environment:

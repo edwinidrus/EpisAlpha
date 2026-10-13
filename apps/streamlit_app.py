@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import secrets
@@ -28,6 +29,7 @@ import streamlit as st
 
 from episalpha.contracts.errors import EpisAlphaError
 from episalpha.contracts.research import TERMINAL_STATES, RunState, RuntimeMode, ThesisSection
+from episalpha.evaluation import reporting
 from episalpha.knowledge import query
 from episalpha.knowledge.export_obsidian import export_knowledge
 from episalpha.observability import SpanKind, annotate, configure_tracing, span
@@ -68,6 +70,13 @@ _MARKDOWN_SPECIAL = re.compile(r"([\\`*_{}\[\]()#+\-.!|<>~$:])")
 def md(label: str) -> str:
     """Escape an app-generated label (an ID, a vocabulary term) for a Markdown widget."""
     return _MARKDOWN_SPECIAL.sub(r"\\\1", label)
+
+
+def code(text: str) -> str:
+    """An inline code span. Its content renders literally, so it is never ``md``-escaped; the
+    fence is longer than any backtick run inside, so the text cannot close it early."""
+    fence = "`" * (max(map(len, re.findall("`+", text)), default=0) + 1)
+    return f"{fence} {text} {fence}"
 
 
 def now() -> datetime:
@@ -165,6 +174,7 @@ def status_panel(settings: Settings, run_id: str, was_active: bool) -> None:
     for warning in record.warnings:
         st.text(f"warning: {warning}")
     served = view.provenance.get("served_by") or []
+    harness_hash = view.provenance.get("harness_hash")
     lines = [
         f"run: {request.run_id} ({request.research_mode.value}, cutoff "
         f"{request.research_cutoff.isoformat()})",
@@ -172,7 +182,15 @@ def status_panel(settings: Settings, run_id: str, was_active: bool) -> None:
         "served by: "
         + (", ".join(served) if served else "none (fixture)" if view.fixture else "unknown"),
         f"harness: {request.harness_id} "
-        f"{(view.provenance.get('harness_hash') or 'hash recorded when the run ends')[:16]}",
+        + (
+            harness_hash[:16]
+            if harness_hash
+            else "none (fixture)"
+            if view.fixture
+            else "unknown"
+            if view.finished
+            else "hash recorded when the run ends"
+        ),
         f"elapsed: {view.elapsed_seconds} s",
         "usage: "
         + (services.usage_line(record.usage) if view.finished else "recorded when the run ends"),
@@ -191,7 +209,7 @@ def status_panel(settings: Settings, run_id: str, was_active: bool) -> None:
                     services.cancel(workbench, run_id, now=now())
             st.success("Cancellation requested; the runner stops before its next stage.")
         st.caption(
-            f"If this run stops progressing, `uv run episalpha research recover {md(run_id)}` "
+            f"If this run stops progressing, {code(f'uv run episalpha research recover {run_id}')} "
             "resumes it as a new attempt."
         )
     if view.integrity_error:
@@ -416,7 +434,7 @@ def export_section(settings: Settings, knowledge: query.RunKnowledge) -> None:
     st.subheader("Obsidian")
     vault = settings.paths.data_root / "exports" / "vault"
     st.caption(
-        f"One-way export to `{md(str(vault))}`: notes are rewritten byte-identically, "
+        f"One-way export to {code(str(vault))}: notes are rewritten byte-identically, "
         "`annotations/` is never touched, and an edited note moves the export to a new folder."
     )
     if st.button("Export to Obsidian vault", key=f"export-{knowledge.run_id}"):
@@ -427,10 +445,97 @@ def export_section(settings: Settings, knowledge: query.RunKnowledge) -> None:
             return
         st.success(
             f"Exported {result.files} files to "
-            f"`{md(result.destination.relative_to(vault.resolve()).as_posix())}`."
+            f"{code(result.destination.relative_to(vault.resolve()).as_posix())}."
         )
         for name in result.conflicts:
             st.warning(f"Edited note left untouched: generated/{md(name)}")
+
+
+# --- experiments (M6-T04) ------------------------------------------------------------------
+
+
+def experiments_tab(settings: Settings) -> None:
+    found = {p.name: p for p in reporting.list_campaigns(settings.paths.data_root / "campaigns")}
+    if not found:
+        st.info(
+            "No campaign yet. Run "
+            + code("uv run episalpha experiment compare --campaign demo-v1 --runtime fake")
+            + "."
+        )
+        return
+    chosen = st.selectbox("Campaign", list(found), key="campaign_picker")
+    report = reporting.build_report(found[str(chosen)])
+    st.warning(reporting.DISCLAIMER)
+    if report.runtime == "fake":
+        st.warning(FIXTURE_LABEL)
+    st.text(
+        f"{report.name} · campaign {report.campaign_id} · runtime {report.runtime} · "
+        f"model {report.model} · status {report.status}"
+    )
+    if report.decision == "baseline_retained":
+        st.badge("Challenger rejected · baseline retained", color="gray")
+        st.caption("A rejected challenger is a complete, valid result.")
+    elif report.decision == "challenger_passed":
+        st.badge("Challenger cleared every gate · baseline still active", color="blue")
+        st.caption("Promotion is an explicit owner action, versioned and linked to this report.")
+    st.subheader("Gates")
+    columns = st.columns(max(1, min(3, len(report.gates))))
+    for index, gate in enumerate(report.gates):
+        with columns[index % len(columns)].container(border=True):
+            st.badge(
+                "PASS" if gate["passed"] else "FAIL", color="green" if gate["passed"] else "red"
+            )
+            st.text(f"{gate['gate']}\n{gate['detail']}")
+    st.subheader("Every trial")
+    st.dataframe(
+        [
+            {
+                "phase": t.phase,
+                "variant": t.variant,
+                "case": t.case_id,
+                "attempt": t.attempt,
+                "status": t.status,
+                "state": t.state,
+                "error": t.error,
+                "requests": t.model_requests,
+                "latency s": t.latency_seconds,
+                **{k: f"{n}/{d}" if d else "N/A" for k, (n, d) in t.metrics.items()},
+                "run": t.run_id,
+            }
+            for t in report.trials
+        ],
+        hide_index=True,
+    )
+    st.subheader("Aggregates (numerator/denominator)")
+    st.dataframe(
+        [
+            {
+                "phase": a.phase,
+                "variant": a.variant,
+                "trials": a.trials,
+                "interrupted": a.interrupted,
+                **{k: f"{n}/{d}" if d else "N/A" for k, (n, d) in a.metrics.items()},
+                "requests": a.model_requests,
+                "tokens": a.tokens,
+                "cost": a.cost,
+            }
+            for a in report.aggregates
+        ],
+        hide_index=True,
+    )
+    if report.candidate_diff is not None:
+        st.subheader("Candidate")
+        st.code(json.dumps(report.candidate_diff, indent=2, sort_keys=True), language="json")
+    for warning in report.reuse_warnings:
+        st.error(warning)
+    if report.exposed_final_cases:
+        st.text("final-check cases exposed: " + ", ".join(report.exposed_final_cases))
+    st.download_button(
+        "Download report (Markdown)",
+        reporting.render_markdown(report),
+        file_name=f"{report.campaign_id}.md",
+        key="report_download",
+    )
 
 
 # --- page ----------------------------------------------------------------------------------
@@ -476,7 +581,7 @@ def main() -> None:
     with knowledge:
         knowledge_tab(settings)
     with experiments:
-        st.info("Not built yet: baseline-versus-challenger reports arrive in M6-T04.")
+        experiments_tab(settings)
 
 
 main()

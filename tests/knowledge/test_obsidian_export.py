@@ -323,7 +323,7 @@ def test_only_the_selected_run_is_exported(
     assert [p.name for p in (vault / "generated").iterdir()] == [first]
     texts = "\n".join(p.read_text() for p in result.destination.rglob("*") if p.is_file())
     assert second not in texts and first in texts
-    assert "Fourth quarter revenue reached EUR 412.0 million. Ma" in texts
+    assert "Fourth quarter revenue reached EUR 412.0 million." in texts
 
 
 def test_an_unfinished_run_cannot_be_exported(
