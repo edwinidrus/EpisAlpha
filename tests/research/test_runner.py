@@ -322,3 +322,48 @@ def test_proposals_and_records_are_artifacts(world: dict[str, Any]) -> None:
     assert [c["claim_id"] for c in records["claims"]] == ["run-0001.c1", "run-0001.c2"]
     assert artifacts.read("proposals") == []
     assert json.loads((artifacts.directory / "manifest.json").read_text())["snapshot_id"]
+
+
+def test_concurrent_admissions_refuse_cleanly_instead_of_crashing(tmp_path: Path) -> None:
+    # Found by the 2026-10-13 concurrency test: three simultaneous `research run` processes, one
+    # crashed with "database is locked". A deferred BEGIN read the run table, another process
+    # committed, and the stale read transaction could not be upgraded to a write (SQLite fails
+    # that at once; the busy timeout does not apply). Admissions must serialize instead.
+    import threading
+
+    path = tmp_path / "app.sqlite3"
+    open_database(path).close()
+    has_read, results = threading.Event(), {}
+
+    def admit_into(name: str, request: Any, pause: bool) -> None:
+        repo = Repository(open_database(path))  # one connection per thread, as per process
+        if pause:
+            original = repo.run_by_idempotency_key
+
+            def slow_read(key: str) -> Any:
+                found = original(key)
+                has_read.set()  # this admission has read the table, transaction still open
+                threading.Event().wait(0.5)
+                return found
+
+            repo.run_by_idempotency_key = slow_read  # type: ignore[method-assign]
+        try:
+            results[name] = admit(repo, request, now=NOW).request.run_id
+        except Exception as error:  # noqa: BLE001 - the test classifies what came out
+            results[name] = error
+        finally:
+            repo.connection.close()
+
+    a = threading.Thread(target=admit_into, args=("a", make_request("run-0001", "key-a"), True))
+    a.start()
+    assert has_read.wait(5)
+    b = threading.Thread(target=admit_into, args=("b", make_request("run-0002", "key-b"), False))
+    b.start()
+    a.join(10)
+    b.join(10)
+    outcomes = sorted(results.values(), key=str)
+    assert not any(isinstance(item, sqlite3.OperationalError) for item in outcomes), outcomes
+    admitted = [item for item in outcomes if isinstance(item, str)]
+    refused = [item for item in outcomes if isinstance(item, EpisAlphaError)]
+    assert len(admitted) == 1 and len(refused) == 1, outcomes
+    assert "already active" in str(refused[0])

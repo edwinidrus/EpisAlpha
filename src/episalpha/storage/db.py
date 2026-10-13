@@ -85,7 +85,10 @@ def transaction(connection: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
     """
     if connection.in_transaction:
         raise RuntimeError("a transaction is already open; nested transactions are not supported")
-    connection.execute("BEGIN")
+    # IMMEDIATE takes the write lock up front, so a concurrent writer waits on the busy timeout.
+    # A deferred BEGIN that reads, then writes after another process committed, fails at once
+    # with "database is locked" (SQLite cannot upgrade a stale read snapshot).
+    connection.execute("BEGIN IMMEDIATE")
     try:
         yield connection
     except Exception:

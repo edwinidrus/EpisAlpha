@@ -97,6 +97,7 @@ The "Start here" section now points at M2-T01 rather than M0-T01.
     - `compose.dev.yaml` `check`: `cap_drop: [ALL]`, `no-new-privileges`; verified by a full container `check` run.
     - `.gitattributes`: `*.sql text eol=lf` (the two migrations).
   - **Fixed 2026-10-12, CI:** the starter `Pylint` workflow (added on GitHub 2026-10-11) ran on Python 3.8–3.10 and could not parse this 3.12 code (`E0001 … invalid syntax`, reproduced locally); it failed on every push. Replaced by `.github/workflows/checks.yml`: the four standard checks with uv 0.11.6 and Python 3.12, no secrets. Verified on a clean copy of the tracked files (no `.env`, no `.episalpha`): four checks green, `637 passed`. Not yet seen running on GitHub (needs a push).
+  - **Fixed 2026-10-13 (test campaign, `docs/implementation/test-report-2026-10-13.md`):** three simultaneous `research run` processes could crash one of them with `sqlite3.OperationalError: database is locked` (2 of 7 rounds). `storage.db.transaction` began DEFERRED; `admit()` reads then writes, and SQLite cannot upgrade a stale read snapshot after another process commits, so it fails at once without using the busy timeout. Now `BEGIN IMMEDIATE`: writers queue on the busy timeout. Red test `test_concurrent_admissions_refuse_cleanly_instead_of_crashing` reproduced the exact error; after the fix 10 concurrent rounds gave one admission and two clean refusals each, 0 crashes. The single-job invariant had held throughout; only the clean refusal was missing.
 
 ## Repository note (not a task)
 

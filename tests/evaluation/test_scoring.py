@@ -406,3 +406,29 @@ def test_answering_when_the_honest_answer_is_to_abstain_is_wrong() -> None:
     score = score_case(outcome(), labels)  # a confident completed thesis
     assert ratio(score, "correct_abstention") == (0, 1)
     assert ratio(score, "completion") == (0, 1)
+
+
+def test_scoring_refuses_a_tampered_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Scoring reads artifacts without replay's up-front verify(); RunArtifacts.read's own hash
+    # check is what keeps an edited artifact out of the scores (found by a mutation check).
+    from episalpha.research.artifacts import ArtifactIntegrityError
+
+    monkeypatch.setenv("EPISALPHA_FAKE_SCENARIO", "completion")
+    config = tmp_path / "test.toml"
+    config.write_text(f'[paths]\nproject_root = "{REPO}"\ndata_root = "{tmp_path / "data"}"\n')
+    workbench = services.open_workbench(load_settings(config))
+    try:
+        services.seed_demo(workbench)
+        request, plan = services.plan_case(
+            workbench, "supported", RuntimeMode.FAKE, now=NOW, nonce="tamper"
+        )
+        services.submit(workbench, request, plan)
+        services.execute(workbench, request.run_id, worker_id="test", now=lambda: NOW)
+        records = workbench.runs_dir / request.run_id / "records.json"
+        records.write_text(records.read_text().replace("412000000.00", "999000000.00"))
+        with pytest.raises(ArtifactIntegrityError):
+            scoring.load_outcome(workbench.repo, workbench.runs_dir, request.run_id)
+    finally:
+        workbench.close()
